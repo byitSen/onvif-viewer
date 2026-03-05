@@ -125,6 +125,7 @@ fn get_ffmpeg_path() -> String {
     }
 }
 
+#[allow(dead_code)]
 fn parse_mp4_frames(data: &[u8]) -> Option<Vec<u8>> {
     let start_marker = &[0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70];
     
@@ -159,7 +160,7 @@ async fn start_stream(
     
     let stdout = {
         let mut mgr = manager.lock().unwrap();
-        let url = mgr.start(channel_id, &rtsp_url, 8890)?;
+        let _url = mgr.start(channel_id, &rtsp_url, 8890)?;
         
         if let Some(child) = mgr.processes.get_mut(&channel_id) {
             child.stdout.take()
@@ -181,7 +182,7 @@ async fn start_stream(
     Ok(format!("http://localhost:8890/mjpeg/{}", channel_id))
 }
 
-fn read_ffmpeg_output(channel_id: usize, frames: Arc<Mutex<HashMap<usize, Vec<u8>>>>, stdout: std::process::ChildStdout, rtsp_url: String) {
+fn read_ffmpeg_output(channel_id: usize, frames: Arc<Mutex<HashMap<usize, Vec<u8>>>>, stdout: std::process::ChildStdout, _rtsp_url: String) {
     log::info!("Starting FFmpeg output reader for channel {}", channel_id);
     
     let mut frame_count = 0;
