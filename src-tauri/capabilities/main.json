@@ -1,0 +1,37 @@
+{
+  "$schema": "https://schemas.tauri.app/config/2/capabilities",
+  "identifier": "main-capability",
+  "description": "主窗口权限",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:window:default",
+    "core:window:allow-close",
+    "core:window:allow-minimize",
+    "core:window:allow-maximize",
+    "core:window:allow-unmaximize",
+    "core:window:allow-set-fullscreen",
+    "global-shortcut:default",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister",
+    "global-shortcut:allow-unregister-all",
+    "store:default",
+    "store:allow-get",
+    "store:allow-set",
+    "store:allow-save",
+    "store:allow-load",
+    "dialog:default",
+    "dialog:allow-open",
+    "dialog:allow-message",
+    "fs:default",
+    "fs:allow-write",
+    "fs:allow-read",
+    "fs:allow-exists",
+    "fs:allow-mkdir",
+    {
+      "identifier": "fs:scope",
+      "allow": [{ "path": "**" }]
+    }
+  ]
+}
