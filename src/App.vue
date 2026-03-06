@@ -65,11 +65,13 @@ onMounted(async () => {
     }
     if (config.gpuEncoder !== undefined) {
       gpuEncoder.value = config.gpuEncoder || 'auto'
-    } else {
-      gpuEncoder.value = 'auto'
     }
   } catch (e) {
     console.error('加载配置失败:', e)
+  }
+
+  if (!gpuEncoder.value) {
+    gpuEncoder.value = 'auto'
   }
 
   try {
