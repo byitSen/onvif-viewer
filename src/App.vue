@@ -17,24 +17,18 @@ interface GpuInfo {
   intel: boolean
   amd: boolean
   apple: boolean
+  auto_encoder: string
 }
 
 const savePath = ref('')
 const captureShortcut = ref('CommandOrControl+Shift+P')
 const toastMessage = ref('')
 const gpuEncoder = ref('')
-const gpuInfo = ref<GpuInfo>({ encoders: [], nvidia: false, intel: false, amd: false, apple: false })
+const gpuInfo = ref<GpuInfo>({ encoders: [], nvidia: false, intel: false, amd: false, apple: false, auto_encoder: '' })
 
 const gpuOptions = [
+  { value: 'auto', label: '自动 (FFmpeg硬件加速)' },
   { value: '', label: 'CPU (禁用GPU)' },
-  { value: 'h264_videotoolbox', label: 'Apple M系列 (H.264)' },
-  { value: 'hevc_videotoolbox', label: 'Apple M系列 (HEVC)' },
-  { value: 'h264_nvenc', label: 'NVIDIA (H.264)' },
-  { value: 'hevc_nvenc', label: 'NVIDIA (HEVC)' },
-  { value: 'h264_qsv', label: 'Intel (H.264)' },
-  { value: 'hevc_qsv', label: 'Intel (HEVC)' },
-  { value: 'h264_amf', label: 'AMD (H.264)' },
-  { value: 'hevc_amf', label: 'AMD (HEVC)' },
 ]
 
 function showToast(msg: string) {
@@ -70,7 +64,9 @@ onMounted(async () => {
       captureShortcut.value = config.captureShortcut
     }
     if (config.gpuEncoder !== undefined) {
-      gpuEncoder.value = config.gpuEncoder
+      gpuEncoder.value = config.gpuEncoder || 'auto'
+    } else {
+      gpuEncoder.value = 'auto'
     }
   } catch (e) {
     console.error('加载配置失败:', e)
@@ -104,13 +100,8 @@ async function saveConfig() {
 }
 
 async function changeGpuEncoder() {
-  if (gpuEncoder.value && gpuInfo.value.encoders.length === 0) {
-    showToast('当前设备不支持GPU加速')
-    gpuEncoder.value = ''
-    return
-  }
   await saveConfig()
-  showToast(gpuEncoder.value ? `GPU编码器: ${gpuEncoder.value}` : '已切换到CPU解码')
+  showToast(gpuEncoder.value === 'auto' ? '已切换到自动硬件加速' : '已切换到CPU解码')
 }
 
 async function selectSavePath() {

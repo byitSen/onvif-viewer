@@ -54,12 +54,10 @@ impl FFmpegManager {
 
         let mut cmd = Command::new(&ffmpeg_path);
         
-        let is_apple = gpu_encoder == "hevc_videotoolbox" || gpu_encoder == "h264_videotoolbox";
-        let is_intel_qsv = gpu_encoder == "hevc_qsv" || gpu_encoder == "h264_qsv";
-        let is_nvidia = gpu_encoder == "hevc_nvenc" || gpu_encoder == "h264_nvenc";
+        let is_auto = gpu_encoder == "auto";
         
-        if is_apple {
-            println!("Using Apple videotoolbox hardware decoding and encoding");
+        if is_auto {
+            println!("Using automatic hardware acceleration (auto)");
             cmd.args([
                 "-rtsp_transport", "tcp",
                 "-timeout", "10000000",
@@ -67,7 +65,7 @@ impl FFmpegManager {
                 "-flags", "low_delay",
                 "-err_detect", "ignore_err",
                 "-max_delay", "500000",
-                "-hwaccel", "videotoolbox",
+                "-hwaccel", "auto",
                 "-i", rtsp_url,
                 "-an",
                 "-c:v", "mjpeg",
@@ -77,48 +75,7 @@ impl FFmpegManager {
                 "-f", "mjpeg",
                 "-",
             ]);
-        } else if is_nvidia {
-            println!("Using NVIDIA hardware decoding with CPU MJPEG encoding");
-            let decoder = if gpu_encoder == "hevc_nvenc" { "hevc_cuvid" } else { "h264_cuvid" };
-            cmd.args([
-                "-rtsp_transport", "tcp",
-                "-timeout", "10000000",
-                "-fflags", "nobuffer+genpts+discardcorrupt",
-                "-flags", "low_delay",
-                "-err_detect", "ignore_err",
-                "-max_delay", "500000",
-                "-hwaccel", "cuda",
-                "-hwaccel_output_format", "cuda",
-                "-i", rtsp_url,
-                "-an",
-                "-c:v", decoder,
-                "-c:v", "mjpeg",
-                "-q:v", "8",
-                "-s", "2560x1440",
-                "-r", "25",
-                "-f", "mjpeg",
-                "-",
-            ]);
-        } else if is_intel_qsv {
-            println!("Using Intel QSV hardware decoding and encoding");
-            cmd.args([
-                "-rtsp_transport", "tcp",
-                "-timeout", "10000000",
-                "-fflags", "nobuffer+genpts+discardcorrupt",
-                "-flags", "low_delay",
-                "-err_detect", "ignore_err",
-                "-max_delay", "500000",
-                "-hwaccel", "qsv",
-                "-i", rtsp_url,
-                "-an",
-                "-c:v", "mjpeg_qsv",
-                "-q:v", "8",
-                "-s", "2560x1440",
-                "-r", "25",
-                "-f", "mjpeg",
-                "-",
-            ]);
-        } else {
+        } else if gpu_encoder.is_empty() {
             println!("Using CPU decoding");
             cmd.args([
                 "-rtsp_transport", "tcp",
@@ -136,6 +93,90 @@ impl FFmpegManager {
                 "-f", "mjpeg",
                 "-",
             ]);
+        } else {
+            let is_apple = gpu_encoder == "hevc_videotoolbox" || gpu_encoder == "h264_videotoolbox";
+            let is_intel_qsv = gpu_encoder == "hevc_qsv" || gpu_encoder == "h264_qsv";
+            let is_nvidia = gpu_encoder == "hevc_nvenc" || gpu_encoder == "h264_nvenc";
+            
+            if is_apple {
+                println!("Using Apple videotoolbox hardware decoding");
+                cmd.args([
+                    "-rtsp_transport", "tcp",
+                    "-timeout", "10000000",
+                    "-fflags", "nobuffer+genpts+discardcorrupt",
+                    "-flags", "low_delay",
+                    "-err_detect", "ignore_err",
+                    "-max_delay", "500000",
+                    "-hwaccel", "videotoolbox",
+                    "-i", rtsp_url,
+                    "-an",
+                    "-c:v", "mjpeg",
+                    "-q:v", "8",
+                    "-s", "2560x1440",
+                    "-r", "25",
+                    "-f", "mjpeg",
+                    "-",
+                ]);
+            } else if is_nvidia {
+                println!("Using NVIDIA hardware decoding with CPU MJPEG encoding");
+                let decoder = if gpu_encoder == "hevc_nvenc" { "hevc_cuvid" } else { "h264_cuvid" };
+                cmd.args([
+                    "-rtsp_transport", "tcp",
+                    "-timeout", "10000000",
+                    "-fflags", "nobuffer+genpts+discardcorrupt",
+                    "-flags", "low_delay",
+                    "-err_detect", "ignore_err",
+                    "-max_delay", "500000",
+                    "-hwaccel", "cuda",
+                    "-hwaccel_output_format", "cuda",
+                    "-i", rtsp_url,
+                    "-an",
+                    "-c:v", decoder,
+                    "-c:v", "mjpeg",
+                    "-q:v", "8",
+                    "-s", "2560x1440",
+                    "-r", "25",
+                    "-f", "mjpeg",
+                    "-",
+                ]);
+            } else if is_intel_qsv {
+                println!("Using Intel QSV hardware decoding and encoding");
+                cmd.args([
+                    "-rtsp_transport", "tcp",
+                    "-timeout", "10000000",
+                    "-fflags", "nobuffer+genpts+discardcorrupt",
+                    "-flags", "low_delay",
+                    "-err_detect", "ignore_err",
+                    "-max_delay", "500000",
+                    "-hwaccel", "qsv",
+                    "-i", rtsp_url,
+                    "-an",
+                    "-c:v", "mjpeg_qsv",
+                    "-q:v", "8",
+                    "-s", "2560x1440",
+                    "-r", "25",
+                    "-f", "mjpeg",
+                    "-",
+                ]);
+            } else {
+                println!("Using CPU decoding");
+                cmd.args([
+                    "-rtsp_transport", "tcp",
+                    "-timeout", "10000000",
+                    "-fflags", "nobuffer+genpts+discardcorrupt",
+                    "-flags", "low_delay",
+                    "-err_detect", "ignore_err",
+                    "-max_delay", "500000",
+                    "-i", rtsp_url,
+                    "-an",
+                    "-c:v", "mjpeg",
+                    "-q:v", "8",
+                    "-s", "2560x1440",
+                    "-r", "25",
+                    "-f", "mjpeg",
+                    "-",
+                ]);
+            }
         }
         
         cmd.stdout(Stdio::piped())
@@ -553,6 +594,7 @@ pub struct GpuInfo {
     pub intel: bool,
     pub amd: bool,
     pub apple: bool,
+    pub auto_encoder: String,
 }
 
 fn check_gpu_support() -> GpuInfo {
@@ -564,7 +606,7 @@ fn check_gpu_support() -> GpuInfo {
     
     if let Err(e) = ffmpeg_check {
         eprintln!("FFmpeg not found at {}, GPU acceleration unavailable: {}", ffmpeg_path, e);
-        return GpuInfo { encoders: vec![], nvidia: false, intel: false, amd: false, apple: false };
+        return GpuInfo { encoders: vec![], nvidia: false, intel: false, amd: false, apple: false, auto_encoder: "".to_string() };
     }
     
     let output = Command::new(&ffmpeg_path)
@@ -576,6 +618,7 @@ fn check_gpu_support() -> GpuInfo {
     let mut intel = false;
     let mut amd = false;
     let mut apple = false;
+    let mut auto_encoder = "".to_string();
     
     match output {
         Ok(out) => {
@@ -612,13 +655,21 @@ fn check_gpu_support() -> GpuInfo {
             
             println!("GPU support check: nvidia={}, intel={}, amd={}, apple={}", nvidia, intel, amd, apple);
             println!("Available encoders: {:?}", encoders);
+            
+            if apple {
+                auto_encoder = "hevc_videotoolbox".to_string();
+            } else if nvidia {
+                auto_encoder = "hevc_nvenc".to_string();
+            } else if intel {
+                auto_encoder = "hevc_qsv".to_string();
+            }
         }
         Err(e) => {
             eprintln!("Failed to check GPU support: {}", e);
         }
     }
     
-    GpuInfo { encoders, nvidia, intel, amd, apple }
+    GpuInfo { encoders, nvidia, intel, amd, apple, auto_encoder }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
