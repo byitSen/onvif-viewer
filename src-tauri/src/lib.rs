@@ -515,12 +515,13 @@ fn setup_logging() {
     let _ = fs::create_dir_all(&log_dir);
     
     let log_file_path = log_dir.join("app.log");
+    let log_file_path_for_panic = log_file_path.clone();
     
     std::panic::set_hook(Box::new(move |info| {
         if let Ok(mut file) = OpenOptions::new()
             .create(true)
             .append(true)
-            .open(&log_file_path)
+            .open(&log_file_path_for_panic)
         {
             use std::io::Write;
             let _ = writeln!(file, "[PANIC] {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"));
