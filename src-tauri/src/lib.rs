@@ -8,9 +8,41 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
+use log::{Log, Metadata, Record};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tauri_plugin_store::StoreExt;
+
+struct FileLogger {
+    file: Arc<Mutex<std::fs::File>>,
+}
+
+impl Log for FileLogger {
+    fn enabled(&self, metadata: &Metadata) -> bool {
+        metadata.level() <= log::Level::Info
+    }
+
+    fn log(&self, record: &Record) {
+        if self.enabled(record.metadata()) {
+            let msg = format!(
+                "{} [{}] {} - {}\n",
+                chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+                record.level(),
+                record.target(),
+                record.args()
+            );
+            if let Ok(mut file) = self.file.lock() {
+                let _ = file.write_all(msg.as_bytes());
+            }
+        }
+    }
+
+    fn flush(&self) {
+        if let Ok(mut file) = self.file.lock() {
+            let _ = file.flush();
+        }
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ChannelConfig {
@@ -508,8 +540,6 @@ fn register_shortcut(app: &AppHandle, shortcut_str: &str) -> Result<(), String> 
 }
 
 fn setup_logging() {
-    use std::io::Write;
-    
     let log_dir = std::env::current_dir()
         .unwrap_or_else(|_| PathBuf::from("."))
         .join("logs");
@@ -517,29 +547,24 @@ fn setup_logging() {
     let _ = fs::create_dir_all(&log_dir);
     
     let log_file_path = log_dir.join("app.log");
-    let log_file = OpenOptions::new()
+    let log_file = match OpenOptions::new()
         .create(true)
         .append(true)
         .open(&log_file_path)
-        .ok();
+    {
+        Ok(f) => f,
+        Err(_) => {
+            eprintln!("Failed to open log file: {:?}", log_file_path);
+            return;
+        }
+    };
     
-    env_logger::Builder::from_default_env()
-        .filter_level(log::LevelFilter::Info)
-        .format(|buf, record| {
-            writeln!(
-                buf,
-                "{} [{}] {} - {}",
-                chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-                record.level(),
-                record.target(),
-                record.args()
-            )
-        })
-        .init();
+    let logger = FileLogger {
+        file: Arc::new(Mutex::new(log_file)),
+    };
     
-    if let Some(mut file) = log_file {
-        let _ = writeln!(file, "\n=== Application started at {} ===", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"));
-    }
+    let _ = log::set_logger(Box::new(logger));
+    log::set_max_level(log::LevelFilter::Info);
     
     log::info!("Logging initialized. Log file: {:?}", log_file_path);
 }
