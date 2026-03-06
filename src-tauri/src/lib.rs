@@ -563,7 +563,7 @@ fn setup_logging() {
         file: Arc::new(Mutex::new(log_file)),
     };
     
-    let _ = log::set_logger(Box::new(logger));
+    let _ = log::set_boxed_logger(Box::new(logger));
     log::set_max_level(log::LevelFilter::Info);
     
     log::info!("Logging initialized. Log file: {:?}", log_file_path);
