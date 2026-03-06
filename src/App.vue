@@ -11,11 +11,27 @@ interface Channel {
   index: number
 }
 
+interface GpuInfo {
+  encoders: string[]
+  nvidia: boolean
+  intel: boolean
+  amd: boolean
+  apple: boolean
+}
+
 const savePath = ref('')
 const captureShortcut = ref('CommandOrControl+Shift+P')
 const toastMessage = ref('')
-const gpuEnabled = ref(false)
-const gpuSupported = ref(false)
+const gpuEncoder = ref('')
+const gpuInfo = ref<GpuInfo>({ encoders: [], nvidia: false, intel: false, amd: false, apple: false })
+
+const gpuOptions = [
+  { value: '', label: 'CPU (禁用GPU)' },
+  { value: 'hevc_nvenc', label: 'NVIDIA (HEVC)' },
+  { value: 'hevc_qsv', label: 'Intel (HEVC)' },
+  { value: 'hevc_amf', label: 'AMD (HEVC)' },
+  { value: 'hevc_videotoolbox', label: 'Apple M系列 (HEVC)' },
+]
 
 function showToast(msg: string) {
   toastMessage.value = msg
@@ -49,15 +65,15 @@ onMounted(async () => {
     if (config.captureShortcut) {
       captureShortcut.value = config.captureShortcut
     }
-    if (config.gpuEnabled !== undefined) {
-      gpuEnabled.value = config.gpuEnabled
+    if (config.gpuEncoder !== undefined) {
+      gpuEncoder.value = config.gpuEncoder
     }
   } catch (e) {
     console.error('加载配置失败:', e)
   }
 
   try {
-    gpuSupported.value = await invoke<boolean>('check_gpu')
+    gpuInfo.value = await invoke<GpuInfo>('check_gpu')
   } catch (e) {
     console.error('检测GPU失败:', e)
   }
@@ -74,7 +90,7 @@ async function saveConfig() {
       config: {
         savePath: savePath.value,
         captureShortcut: captureShortcut.value,
-        gpuEnabled: gpuEnabled.value,
+        gpuEncoder: gpuEncoder.value,
         channels: channels.map(c => ({ rtspUrl: c.rtspUrl }))
       }
     })
@@ -83,14 +99,14 @@ async function saveConfig() {
   }
 }
 
-async function toggleGpu() {
-  if (!gpuSupported.value) {
+async function changeGpuEncoder() {
+  if (gpuEncoder.value && gpuInfo.value.encoders.length === 0) {
     showToast('当前设备不支持GPU加速')
+    gpuEncoder.value = ''
     return
   }
-  gpuEnabled.value = !gpuEnabled.value
   await saveConfig()
-  showToast(gpuEnabled.value ? 'GPU加速已开启' : 'GPU加速已关闭')
+  showToast(gpuEncoder.value ? `GPU编码器: ${gpuEncoder.value}` : '已切换到CPU解码')
 }
 
 async function selectSavePath() {
@@ -214,14 +230,20 @@ async function captureAll() {
           placeholder="快捷键"
           class="shortcut-input"
         />
-        <button 
-          class="btn" 
-          :class="gpuEnabled ? 'btn-gpu-on' : 'btn-gpu-off'"
-          @click="toggleGpu"
-          :title="gpuSupported ? (gpuEnabled ? 'GPU加速已开启' : 'GPU加速已关闭') : '当前设备不支持GPU加速'"
+        <select
+          v-model="gpuEncoder"
+          @change="changeGpuEncoder"
+          class="gpu-select"
         >
-          GPU {{ gpuSupported ? (gpuEnabled ? 'ON' : 'OFF') : 'N/A' }}
-        </button>
+          <option 
+            v-for="opt in gpuOptions" 
+            :key="opt.value" 
+            :value="opt.value"
+            :disabled="opt.value && !gpuInfo.encoders.includes(opt.value)"
+          >
+            {{ opt.label }}
+          </option>
+        </select>
       </div>
     </header>
 
@@ -325,10 +347,25 @@ async function captureAll() {
 .btn-primary { background: #0f3460; color: #fff; }
 .btn-primary:hover { background: #1a4a7a; }
 
-.btn-gpu-on { background: #22c55e; color: #fff; }
-.btn-gpu-on:hover { background: #16a34a; }
-.btn-gpu-off { background: #4b5563; color: #fff; }
-.btn-gpu-off:hover { background: #6b7280; }
+.gpu-select {
+  padding: 8px 12px;
+  background: #1a1a2e;
+  border: 1px solid #0f3460;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  min-width: 160px;
+}
+
+.gpu-select:focus {
+  outline: none;
+  border-color: #e94560;
+}
+
+.gpu-select option:disabled {
+  color: #666;
+}
 
 .shortcut-input {
   width: 150px;

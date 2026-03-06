@@ -24,8 +24,8 @@ pub struct AppConfig {
     pub save_path: Option<String>,
     #[serde(rename = "captureShortcut")]
     pub capture_shortcut: String,
-    #[serde(rename = "gpuEnabled")]
-    pub gpu_enabled: bool,
+    #[serde(rename = "gpuEncoder")]
+    pub gpu_encoder: String,
     pub channels: Vec<ChannelConfig>,
 }
 
@@ -46,29 +46,42 @@ impl FFmpegManager {
         }
     }
 
-    pub fn start(&mut self, channel_id: usize, rtsp_url: &str, _port: u16, gpu_enabled: bool) -> Result<String, String> {
+    pub fn start(&mut self, channel_id: usize, rtsp_url: &str, _port: u16, gpu_encoder: &str) -> Result<String, String> {
         self.stop(channel_id);
 
         let ffmpeg_path = get_ffmpeg_path();
         log::info!("Using FFmpeg: {}", ffmpeg_path);
-        log::info!("GPU acceleration: {}", if gpu_enabled { "enabled" } else { "disabled" });
+        log::info!("GPU encoder: {}", gpu_encoder);
 
         let mut cmd = Command::new(&ffmpeg_path);
         
-        if gpu_enabled {
+        let is_nvidia = gpu_encoder == "hevc_nvenc";
+        let is_intel = gpu_encoder == "hevc_qsv";
+        let is_amd = gpu_encoder == "hevc_amf";
+        let is_apple = gpu_encoder == "hevc_videotoolbox";
+        
+        if is_nvidia || is_intel || is_amd || is_apple {
+            let hwaccel = match gpu_encoder {
+                "hevc_nvenc" => "cuda",
+                "hevc_qsv" => "qsv",
+                "hevc_amf" => "d3d11va",
+                "hevc_videotoolbox" => " videotoolbox",
+                _ => "auto",
+            };
+            
+            let encoder = gpu_encoder;
+            
             cmd.args([
                 "-rtsp_transport", "tcp",
                 "-timeout", "10000000",
                 "-re",
                 "-fflags", "nobuffer",
                 "-flags", "low_delay",
-                "-hwaccel", "auto",
+                "-hwaccel", hwaccel,
                 "-i", rtsp_url,
                 "-an",
-                "-c:v", "mjpeg",
-                "-q:v", "8",
-                "-s", "2560x1440",
-                "-r", "30",
+                "-c:v", encoder,
+                "-preset", "fast",
                 "-f", "mjpeg",
                 "-",
             ]);
@@ -188,14 +201,14 @@ async fn start_stream(
     let manager = state.ffmpeg_manager.clone();
     let config = state.config.clone();
     
-    let gpu_enabled = {
+    let gpu_encoder = {
         let cfg = config.lock().unwrap();
-        cfg.gpu_enabled
+        cfg.gpu_encoder.clone()
     };
     
     let stdout = {
         let mut mgr = manager.lock().unwrap();
-        let _url = mgr.start(channel_id, &rtsp_url, 8890, gpu_enabled)?;
+        let _url = mgr.start(channel_id, &rtsp_url, 8890, &gpu_encoder)?;
         
         if let Some(child) = mgr.processes.get_mut(&channel_id) {
             child.stdout.take()
@@ -283,13 +296,13 @@ async fn stop_stream(channel_id: usize, state: State<'_, AppState>) -> Result<()
 #[tauri::command]
 async fn start_all_streams(state: State<'_, AppState>) -> Result<Vec<String>, String> {
     let config = state.config.lock().unwrap().clone();
-    let gpu_enabled = config.gpu_enabled;
+    let gpu_encoder = config.gpu_encoder.clone();
     let mut results = Vec::new();
 
     for (id, channel) in config.channels.iter().enumerate() {
         if !channel.rtsp_url.is_empty() {
             let mut manager = state.ffmpeg_manager.lock().unwrap();
-            match manager.start(id, &channel.rtsp_url, 8890, gpu_enabled) {
+            match manager.start(id, &channel.rtsp_url, 8890, &gpu_encoder) {
                 Ok(url) => results.push(url),
                 Err(e) => log::error!("Channel {} failed: {}", id, e),
             }
@@ -391,7 +404,7 @@ async fn capture_frame(
 }
 
 #[tauri::command]
-fn check_gpu() -> bool {
+fn check_gpu() -> GpuInfo {
     check_gpu_support()
 }
 
@@ -540,32 +553,58 @@ fn setup_logging() {
     log::info!("Logging initialized. Log file: {:?}", log_file_path);
 }
 
-fn check_gpu_support() -> bool {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GpuInfo {
+    pub encoders: Vec<String>,
+    pub nvidia: bool,
+    pub intel: bool,
+    pub amd: bool,
+    pub apple: bool,
+}
+
+fn check_gpu_support() -> GpuInfo {
     let ffmpeg_path = get_ffmpeg_path();
     
     let output = Command::new(&ffmpeg_path)
-        .args(["-hide_banner", "-hwaccels"])
+        .args(["-hide_banner", "-encoders"])
         .output();
+    
+    let mut encoders = Vec::new();
+    let mut nvidia = false;
+    let mut intel = false;
+    let mut amd = false;
+    let mut apple = false;
     
     match output {
         Ok(out) => {
             let stdout = String::from_utf8_lossy(&out.stdout);
-            let has_cuda = stdout.contains("cuda");
-            let has_dxva2 = stdout.contains("dxva2");
-            let has_d3d11va = stdout.contains("d3d11va");
-            let has_qsv = stdout.contains("qsv");
-            let has_vaapi = stdout.contains("vaapi");
             
-            let has_gpu = has_cuda || has_dxva2 || has_d3d11va || has_qsv || has_vaapi;
-            log::info!("GPU support check: cuda={}, dxva2={}, d3d11va={}, qsv={}, vaapi={}", 
-                has_cuda, has_dxva2, has_d3d11va, has_qsv, has_vaapi);
-            has_gpu
+            if stdout.contains("hevc_nvenc") || stdout.contains("h264_nvenc") {
+                nvidia = true;
+                encoders.push("hevc_nvenc".to_string());
+            }
+            if stdout.contains("hevc_qsv") || stdout.contains("h264_qsv") {
+                intel = true;
+                encoders.push("hevc_qsv".to_string());
+            }
+            if stdout.contains("hevc_amf") || stdout.contains("h264_amf") {
+                amd = true;
+                encoders.push("hevc_amf".to_string());
+            }
+            if stdout.contains("hevc_videotoolbox") || stdout.contains("h264_videotoolbox") {
+                apple = true;
+                encoders.push("hevc_videotoolbox".to_string());
+            }
+            
+            log::info!("GPU support check: nvidia={}, intel={}, amd={}, apple={}", nvidia, intel, amd, apple);
+            log::info!("Available encoders: {:?}", encoders);
         }
         Err(e) => {
             log::error!("Failed to check GPU support: {}", e);
-            false
         }
     }
+    
+    GpuInfo { encoders, nvidia, intel, amd, apple }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -578,6 +617,7 @@ pub fn run() {
         frames: Arc::new(Mutex::new(HashMap::new())),
         config: Arc::new(Mutex::new(AppConfig {
             capture_shortcut: "CommandOrControl+Shift+P".to_string(),
+            gpu_encoder: "".to_string(),
             channels: vec![ChannelConfig::default(); 3],
             ..Default::default()
         })),
