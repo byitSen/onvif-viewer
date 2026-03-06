@@ -69,28 +69,91 @@ impl FFmpegManager {
                 _ => "auto",
             };
             
-            cmd.args([
-                "-rtsp_transport", "tcp",
-                "-timeout", "10000000",
-                "-re",
-                "-fflags", "nobuffer",
-                "-flags", "low_delay",
-                "-hwaccel", hwaccel,
-                "-i", rtsp_url,
-                "-an",
-                "-c:v", "mjpeg",
-                "-q:v", "8",
-                "-s", "2560x1440",
-                "-r", "30",
-                "-f", "mjpeg",
-                "-",
-            ]);
+            log::info!("Using hwaccel: {}", hwaccel);
+            
+            if is_apple {
+                cmd.args([
+                    "-rtsp_transport", "tcp",
+                    "-timeout", "10000000",
+                    "-re",
+                    "-fflags", "nobuffer+genpts",
+                    "-flags", "low_delay",
+                    "-hwaccel", hwaccel,
+                    "-hwaccel_output_format", "videotoolbox",
+                    "-extra_hw_frames", "16",
+                    "-i", rtsp_url,
+                    "-an",
+                    "-c:v", "mjpeg",
+                    "-q:v", "8",
+                    "-s", "2560x1440",
+                    "-r", "30",
+                    "-f", "mjpeg",
+                    "-",
+                ]);
+            } else if is_nvidia {
+                cmd.args([
+                    "-rtsp_transport", "tcp",
+                    "-timeout", "10000000",
+                    "-re",
+                    "-fflags", "nobuffer+genpts",
+                    "-flags", "low_delay",
+                    "-hwaccel", hwaccel,
+                    "-hwaccel_output_format", "cuda",
+                    "-extra_hw_frames", "16",
+                    "-i", rtsp_url,
+                    "-an",
+                    "-c:v", "mjpeg",
+                    "-q:v", "8",
+                    "-s", "2560x1440",
+                    "-r", "30",
+                    "-f", "mjpeg",
+                    "-",
+                ]);
+            } else if is_intel {
+                cmd.args([
+                    "-rtsp_transport", "tcp",
+                    "-timeout", "10000000",
+                    "-re",
+                    "-fflags", "nobuffer+genpts",
+                    "-flags", "low_delay",
+                    "-hwaccel", hwaccel,
+                    "-hwaccel_output_format", "qsv",
+                    "-extra_hw_frames", "16",
+                    "-i", rtsp_url,
+                    "-an",
+                    "-c:v", "mjpeg",
+                    "-q:v", "8",
+                    "-s", "2560x1440",
+                    "-r", "30",
+                    "-f", "mjpeg",
+                    "-",
+                ]);
+            } else {
+                cmd.args([
+                    "-rtsp_transport", "tcp",
+                    "-timeout", "10000000",
+                    "-re",
+                    "-fflags", "nobuffer+genpts",
+                    "-flags", "low_delay",
+                    "-hwaccel", hwaccel,
+                    "-extra_hw_frames", "16",
+                    "-i", rtsp_url,
+                    "-an",
+                    "-c:v", "mjpeg",
+                    "-q:v", "8",
+                    "-s", "2560x1440",
+                    "-r", "30",
+                    "-f", "mjpeg",
+                    "-",
+                ]);
+            }
         } else {
+            log::info!("Using CPU decoding");
             cmd.args([
                 "-rtsp_transport", "tcp",
                 "-timeout", "10000000",
                 "-re",
-                "-fflags", "nobuffer",
+                "-fflags", "nobuffer+genpts",
                 "-flags", "low_delay",
                 "-i", rtsp_url,
                 "-an",
