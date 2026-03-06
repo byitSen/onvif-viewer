@@ -244,7 +244,6 @@ async function captureAll() {
             v-for="opt in gpuOptions" 
             :key="opt.value" 
             :value="opt.value"
-            :disabled="!opt.value ? false : !gpuInfo.encoders.includes(opt.value)"
           >
             {{ opt.label }}
           </option>
