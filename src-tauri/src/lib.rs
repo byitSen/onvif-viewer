@@ -213,17 +213,6 @@ impl FFmpegManager {
 
 fn get_ffmpeg_path() -> String {
     if cfg!(target_os = "windows") {
-        if let Ok(exe_path) = std::env::current_exe() {
-            if let Some(parent) = exe_path.parent() {
-                let bundled = parent.join("resources")
-                    .join("ffmpeg")
-                    .join("bin")
-                    .join("ffmpeg.exe");
-                if bundled.exists() {
-                    return bundled.to_string_lossy().to_string();
-                }
-            }
-        }
         "ffmpeg.exe".to_string()
     } else {
         "ffmpeg".to_string()
@@ -620,6 +609,15 @@ pub struct GpuInfo {
 
 fn check_gpu_support() -> GpuInfo {
     let ffmpeg_path = get_ffmpeg_path();
+    
+    let ffmpeg_check = Command::new(&ffmpeg_path)
+        .arg("-version")
+        .output();
+    
+    if let Err(e) = ffmpeg_check {
+        log::warn!("FFmpeg not found at {}, GPU acceleration unavailable: {}", ffmpeg_path, e);
+        return GpuInfo { encoders: vec![], nvidia: false, intel: false, amd: false, apple: false };
+    }
     
     let output = Command::new(&ffmpeg_path)
         .args(["-hide_banner", "-encoders"])
