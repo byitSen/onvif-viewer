@@ -12,36 +12,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Create resources directory
-        run: mkdir src-tauri\resources
-      
-      - name: Download and setup FFmpeg
-        shell: pwsh
-        run: |
-          # Download FFmpeg
-          $ffmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
-          Write-Host "Downloading FFmpeg from $ffmpegUrl"
-          Invoke-WebRequest -Uri $ffmpegUrl -OutFile ffmpeg.zip
-          Write-Host "Extracting FFmpeg..."
-          Expand-Archive -Path ffmpeg.zip -DestinationPath . -Force
-          # Find and copy ffmpeg to resources
-          $ffmpegDir = Get-ChildItem -Path . -Filter "ffmpeg*" -Directory | Select-Object -First 1
-          if ($ffmpegDir) {
-            Copy-Item -Path $ffmpegDir.FullName -Destination "src-tauri\resources\ffmpeg" -Recurse -Force
-            Write-Host "FFmpeg copied to src-tauri\resources\ffmpeg"
-          } else {
-            Write-Host "ERROR: FFmpeg directory not found!"
-            exit 1
-          }
-          Remove-Item ffmpeg.zip -Force -ErrorAction SilentlyContinue
-      
-      - name: Verify FFmpeg exists
-        run: dir src-tauri\resources\ffmpeg\bin
-      
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-      
-      - name: Install Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -49,11 +20,36 @@ jobs:
       - name: Install dependencies
         run: npm install
       
-      - name: Build Windows
-        run: npm run tauri build
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
       
-      - name: Upload installer
+      - name: Download FFmpeg for Windows
+        shell: pwsh
+        run: |
+          $ffmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+          Write-Host "Downloading FFmpeg from $ffmpegUrl"
+          Invoke-WebRequest -Uri $ffmpegUrl -OutFile ffmpeg.zip
+          Write-Host "Extracting FFmpeg..."
+          Expand-Archive -Path ffmpeg.zip -DestinationPath . -Force
+          $ffmpegDir = Get-ChildItem -Path . -Filter "ffmpeg*" -Directory | Select-Object -First 1
+          if ($ffmpegDir) {
+            New-Item -ItemType Directory -Path "build-resources\win" -Force | Out-Null
+            Copy-Item -Path "$($ffmpegDir.FullName)\bin\ffmpeg.exe" -Destination "build-resources\win\ffmpeg.exe" -Force
+            Write-Host "FFmpeg copied to build-resources\win\ffmpeg.exe"
+          } else {
+            Write-Host "ERROR: FFmpeg directory not found!"
+            exit 1
+          }
+          Remove-Item ffmpeg.zip -Force -ErrorAction SilentlyContinue
+      
+      - name: Verify FFmpeg exists
+        run: dir build-resources\win\ffmpeg.exe
+      
+      - name: Build Windows MSI
+        run: npm run tauri build -- --bundles msi
+      
+      - name: Upload MSI installer
         uses: actions/upload-artifact@v4
         with:
-          name: windows-installer
-          path: src-tauri/target/release/bundle/nsis/*.exe
+          name: windows-msi
+          path: src-tauri/target/release/bundle/msi/*.msi
