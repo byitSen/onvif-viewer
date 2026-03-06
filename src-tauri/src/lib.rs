@@ -55,17 +55,17 @@ impl FFmpegManager {
 
         let mut cmd = Command::new(&ffmpeg_path);
         
-        let is_nvidia = gpu_encoder == "hevc_nvenc";
-        let is_intel = gpu_encoder == "hevc_qsv";
-        let is_amd = gpu_encoder == "hevc_amf";
-        let is_apple = gpu_encoder == "hevc_videotoolbox";
+        let is_nvidia = gpu_encoder == "hevc_nvenc" || gpu_encoder == "h264_nvenc";
+        let is_intel = gpu_encoder == "hevc_qsv" || gpu_encoder == "h264_qsv";
+        let is_amd = gpu_encoder == "hevc_amf" || gpu_encoder == "h264_amf";
+        let is_apple = gpu_encoder == "hevc_videotoolbox" || gpu_encoder == "h264_videotoolbox";
         
         if is_nvidia || is_intel || is_amd || is_apple {
             let hwaccel = match gpu_encoder {
-                "hevc_nvenc" => "cuda",
-                "hevc_qsv" => "qsv",
-                "hevc_amf" => "d3d11va",
-                "hevc_videotoolbox" => "videotoolbox",
+                "hevc_nvenc" | "h264_nvenc" => "cuda",
+                "hevc_qsv" | "h264_qsv" => "qsv",
+                "hevc_amf" | "h264_amf" => "d3d11va",
+                "hevc_videotoolbox" | "h264_videotoolbox" => "videotoolbox",
                 _ => "auto",
             };
             
@@ -75,18 +75,17 @@ impl FFmpegManager {
                 cmd.args([
                     "-rtsp_transport", "tcp",
                     "-timeout", "10000000",
-                    "-re",
-                    "-fflags", "nobuffer+genpts",
+                    "-fflags", "nobuffer+genpts+discardcorrupt",
                     "-flags", "low_delay",
+                    "-err_detect", "ignore_err",
+                    "-max_delay", "500000",
                     "-hwaccel", hwaccel,
-                    "-hwaccel_output_format", "videotoolbox",
-                    "-extra_hw_frames", "16",
                     "-i", rtsp_url,
                     "-an",
                     "-c:v", "mjpeg",
                     "-q:v", "8",
                     "-s", "2560x1440",
-                    "-r", "30",
+                    "-r", "25",
                     "-f", "mjpeg",
                     "-",
                 ]);
@@ -94,18 +93,18 @@ impl FFmpegManager {
                 cmd.args([
                     "-rtsp_transport", "tcp",
                     "-timeout", "10000000",
-                    "-re",
-                    "-fflags", "nobuffer+genpts",
+                    "-fflags", "nobuffer+genpts+discardcorrupt",
                     "-flags", "low_delay",
+                    "-err_detect", "ignore_err",
+                    "-max_delay", "500000",
                     "-hwaccel", hwaccel,
                     "-hwaccel_output_format", "cuda",
-                    "-extra_hw_frames", "16",
                     "-i", rtsp_url,
                     "-an",
                     "-c:v", "mjpeg",
                     "-q:v", "8",
                     "-s", "2560x1440",
-                    "-r", "30",
+                    "-r", "25",
                     "-f", "mjpeg",
                     "-",
                 ]);
@@ -113,18 +112,18 @@ impl FFmpegManager {
                 cmd.args([
                     "-rtsp_transport", "tcp",
                     "-timeout", "10000000",
-                    "-re",
-                    "-fflags", "nobuffer+genpts",
+                    "-fflags", "nobuffer+genpts+discardcorrupt",
                     "-flags", "low_delay",
+                    "-err_detect", "ignore_err",
+                    "-max_delay", "500000",
                     "-hwaccel", hwaccel,
                     "-hwaccel_output_format", "qsv",
-                    "-extra_hw_frames", "16",
                     "-i", rtsp_url,
                     "-an",
                     "-c:v", "mjpeg",
                     "-q:v", "8",
                     "-s", "2560x1440",
-                    "-r", "30",
+                    "-r", "25",
                     "-f", "mjpeg",
                     "-",
                 ]);
@@ -132,35 +131,36 @@ impl FFmpegManager {
                 cmd.args([
                     "-rtsp_transport", "tcp",
                     "-timeout", "10000000",
-                    "-re",
-                    "-fflags", "nobuffer+genpts",
+                    "-fflags", "nobuffer+genpts+discardcorrupt",
                     "-flags", "low_delay",
+                    "-err_detect", "ignore_err",
+                    "-max_delay", "500000",
                     "-hwaccel", hwaccel,
-                    "-extra_hw_frames", "16",
                     "-i", rtsp_url,
                     "-an",
                     "-c:v", "mjpeg",
                     "-q:v", "8",
                     "-s", "2560x1440",
-                    "-r", "30",
+                    "-r", "25",
                     "-f", "mjpeg",
                     "-",
                 ]);
             }
         } else {
-            log::info!("Using CPU decoding");
+            log::info!("Using CPU decoding and encoding");
             cmd.args([
                 "-rtsp_transport", "tcp",
                 "-timeout", "10000000",
-                "-re",
-                "-fflags", "nobuffer+genpts",
+                "-fflags", "nobuffer+genpts+discardcorrupt",
                 "-flags", "low_delay",
+                "-err_detect", "ignore_err",
+                "-max_delay", "500000",
                 "-i", rtsp_url,
                 "-an",
                 "-c:v", "mjpeg",
                 "-q:v", "8",
                 "-s", "2560x1440",
-                "-r", "30",
+                "-r", "25",
                 "-f", "mjpeg",
                 "-",
             ]);
@@ -638,18 +638,30 @@ fn check_gpu_support() -> GpuInfo {
             if stdout.contains("hevc_nvenc") || stdout.contains("h264_nvenc") {
                 nvidia = true;
                 encoders.push("hevc_nvenc".to_string());
+                if stdout.contains("h264_nvenc") {
+                    encoders.push("h264_nvenc".to_string());
+                }
             }
             if stdout.contains("hevc_qsv") || stdout.contains("h264_qsv") {
                 intel = true;
                 encoders.push("hevc_qsv".to_string());
+                if stdout.contains("h264_qsv") {
+                    encoders.push("h264_qsv".to_string());
+                }
             }
             if stdout.contains("hevc_amf") || stdout.contains("h264_amf") {
                 amd = true;
                 encoders.push("hevc_amf".to_string());
+                if stdout.contains("h264_amf") {
+                    encoders.push("h264_amf".to_string());
+                }
             }
             if stdout.contains("hevc_videotoolbox") || stdout.contains("h264_videotoolbox") {
                 apple = true;
                 encoders.push("hevc_videotoolbox".to_string());
+                if stdout.contains("h264_videotoolbox") {
+                    encoders.push("h264_videotoolbox".to_string());
+                }
             }
             
             log::info!("GPU support check: nvidia={}, intel={}, amd={}, apple={}", nvidia, intel, amd, apple);
@@ -720,26 +732,26 @@ pub fn run() {
 
 fn start_mjpeg_server(port: u16, frames: Arc<Mutex<HashMap<usize, Vec<u8>>>>) {
     let listener = TcpListener::bind(format!("0.0.0.0:{}", port)).unwrap();
-    log::info!("MJPEG server listening on port {}", port);
+    log::info!("MJPEG/H265 server listening on port {}", port);
 
     for stream in listener.incoming() {
         if let Ok(mut stream) = stream {
             let frames_clone = frames.clone();
             thread::spawn(move || {
-                handle_mjpeg_connection(&mut stream, frames_clone);
+                handle_stream_connection(&mut stream, frames_clone);
             });
         }
     }
 }
 
-fn handle_mjpeg_connection(
+fn handle_stream_connection(
     stream: &mut std::net::TcpStream,
     frames: Arc<Mutex<HashMap<usize, Vec<u8>>>>,
 ) {
     let mut buffer = [0u8; 256];
     if let Ok(n) = stream.read(&mut buffer) {
         let request = String::from_utf8_lossy(&buffer[..n]);
-        log::info!("MJPEG request: {}", request.lines().next().unwrap_or(""));
+        log::info!("Stream request: {}", request.lines().next().unwrap_or(""));
         
         let channel_id = if let Some(path) = request.lines().next().and_then(|l| l.split_whitespace().nth(1)) {
             path.split('/').last().and_then(|s| s.parse().ok()).unwrap_or(0)
@@ -757,29 +769,30 @@ fn handle_mjpeg_connection(
             return;
         }
 
+        let boundary = b"--jpegboundary\r\nContent-Type: image/jpeg\r\n\r\n";
+        let frame_end = b"\r\n";
+        
         loop {
             let frames_lock = frames.lock().unwrap();
             if let Some(frame) = frames_lock.get(&channel_id) {
                 if frame.is_empty() {
                     drop(frames_lock);
-                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    std::thread::sleep(std::time::Duration::from_millis(40));
                     continue;
                 }
-                if stream.write_all(b"--jpegboundary\r\n").is_err() {
-                    return;
-                }
-                if stream.write_all(b"Content-Type: image/jpeg\r\n\r\n").is_err() {
+                
+                if stream.write_all(boundary).is_err() {
                     return;
                 }
                 if stream.write_all(frame).is_err() {
                     return;
                 }
-                if stream.write_all(b"\r\n").is_err() {
+                if stream.write_all(frame_end).is_err() {
                     return;
                 }
             }
             drop(frames_lock);
-            std::thread::sleep(std::time::Duration::from_millis(100));
+            std::thread::sleep(std::time::Duration::from_millis(40));
         }
     }
 }

@@ -27,10 +27,14 @@ const gpuInfo = ref<GpuInfo>({ encoders: [], nvidia: false, intel: false, amd: f
 
 const gpuOptions = [
   { value: '', label: 'CPU (禁用GPU)' },
-  { value: 'hevc_nvenc', label: 'NVIDIA (HEVC)' },
-  { value: 'hevc_qsv', label: 'Intel (HEVC)' },
-  { value: 'hevc_amf', label: 'AMD (HEVC)' },
+  { value: 'h264_videotoolbox', label: 'Apple M系列 (H.264)' },
   { value: 'hevc_videotoolbox', label: 'Apple M系列 (HEVC)' },
+  { value: 'h264_nvenc', label: 'NVIDIA (H.264)' },
+  { value: 'hevc_nvenc', label: 'NVIDIA (HEVC)' },
+  { value: 'h264_qsv', label: 'Intel (H.264)' },
+  { value: 'hevc_qsv', label: 'Intel (HEVC)' },
+  { value: 'h264_amf', label: 'AMD (H.264)' },
+  { value: 'hevc_amf', label: 'AMD (HEVC)' },
 ]
 
 function showToast(msg: string) {
@@ -239,7 +243,7 @@ async function captureAll() {
             v-for="opt in gpuOptions" 
             :key="opt.value" 
             :value="opt.value"
-            :disabled="opt.value && !gpuInfo.encoders.includes(opt.value)"
+            :disabled="!opt.value ? false : !gpuInfo.encoders.includes(opt.value)"
           >
             {{ opt.label }}
           </option>
