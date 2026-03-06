@@ -12,6 +12,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      - name: Create resources directory
+        run: mkdir src-tauri\resources
+      
       - name: Download and setup FFmpeg
         shell: pwsh
         run: |
@@ -21,14 +24,19 @@ jobs:
           Invoke-WebRequest -Uri $ffmpegUrl -OutFile ffmpeg.zip
           Write-Host "Extracting FFmpeg..."
           Expand-Archive -Path ffmpeg.zip -DestinationPath . -Force
-          # Find and move ffmpeg to resources
+          # Find and copy ffmpeg to resources
           $ffmpegDir = Get-ChildItem -Path . -Filter "ffmpeg*" -Directory | Select-Object -First 1
           if ($ffmpegDir) {
-            New-Item -ItemType Directory -Path "src-tauri/resources" -Force | Out-Null
-            Move-Item -Path $ffmpegDir.FullName -Destination "src-tauri/resources/ffmpeg" -Force
-            Write-Host "FFmpeg installed to src-tauri/resources/ffmpeg"
+            Copy-Item -Path $ffmpegDir.FullName -Destination "src-tauri\resources\ffmpeg" -Recurse -Force
+            Write-Host "FFmpeg copied to src-tauri\resources\ffmpeg"
+          } else {
+            Write-Host "ERROR: FFmpeg directory not found!"
+            exit 1
           }
-          Remove-Item ffmpeg.zip -Force
+          Remove-Item ffmpeg.zip -Force -ErrorAction SilentlyContinue
+      
+      - name: Verify FFmpeg exists
+        run: dir src-tauri\resources\ffmpeg\bin
       
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
