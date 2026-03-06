@@ -1,9 +1,7 @@
 fn main() {
     #[cfg(windows)]
     {
-        use windows_sys::Win32::Foundation::SW_HIDE;
-        use windows_sys::Win32::UI::WindowsAndMessaging::GetConsoleWindow;
-        use windows_sys::Win32::UI::WindowsAndMessaging::ShowWindow;
+        use windows_sys::Win32::UI::WindowsAndMessaging::{GetConsoleWindow, ShowWindow, SW_HIDE};
 
         unsafe {
             let console_window = GetConsoleWindow();
