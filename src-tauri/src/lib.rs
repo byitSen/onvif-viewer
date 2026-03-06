@@ -62,10 +62,10 @@ impl FFmpegManager {
         
         if is_nvidia || is_intel || is_amd || is_apple {
             let hwaccel = match gpu_encoder {
-                "hevc_nvenc" => "cuda",
-                "hevc_qsv" => "qsv",
-                "hevc_amf" => "d3d11va",
-                "hevc_videotoolbox" => "videotoolbox",
+                "hevc_nvenc" => "hevc_nvenc",
+                "hevc_qsv" => "hevc_qsv",
+                "hevc_amf" => "hevc_amf",
+                "hevc_videotoolbox" => "hevc_videotoolbox",
                 _ => "auto",
             };
             
