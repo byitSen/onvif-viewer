@@ -283,12 +283,13 @@ async fn stop_stream(channel_id: usize, state: State<'_, AppState>) -> Result<()
 #[tauri::command]
 async fn start_all_streams(state: State<'_, AppState>) -> Result<Vec<String>, String> {
     let config = state.config.lock().unwrap().clone();
+    let gpu_enabled = config.gpu_enabled;
     let mut results = Vec::new();
 
     for (id, channel) in config.channels.iter().enumerate() {
         if !channel.rtsp_url.is_empty() {
             let mut manager = state.ffmpeg_manager.lock().unwrap();
-            match manager.start(id, &channel.rtsp_url, 8890) {
+            match manager.start(id, &channel.rtsp_url, 8890, gpu_enabled) {
                 Ok(url) => results.push(url),
                 Err(e) => log::error!("Channel {} failed: {}", id, e),
             }
