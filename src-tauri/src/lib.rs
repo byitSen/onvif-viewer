@@ -510,18 +510,9 @@ fn register_shortcut(app: &AppHandle, shortcut_str: &str) -> Result<(), String> 
 fn setup_logging() {
     use std::io::Write;
     
-    let log_dir = if cfg!(target_os = "windows") {
-        if let Ok(local_app_data) = env::var("LOCALAPPDATA") {
-            PathBuf::from(local_app_data).join("ONVIF Viewer").join("logs")
-        } else {
-            PathBuf::from(env::temp_dir()).join("ONVIF Viewer").join("logs")
-        }
-    } else {
-        dirs::data_local_dir()
-            .unwrap_or_else(|| PathBuf::from(env::temp_dir()))
-            .join("ONVIF Viewer")
-            .join("logs")
-    };
+    let log_dir = std::env::current_dir()
+        .unwrap_or_else(|_| PathBuf::from("."))
+        .join("logs");
     
     let _ = fs::create_dir_all(&log_dir);
     
