@@ -203,13 +203,23 @@ async function captureAll() {
     }
   }
 
+  const now = new Date()
+  const dateStr = now.getFullYear() + '-' + 
+    String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+    String(now.getDate()).padStart(2, '0')
+  const timeStr = String(now.getHours()).padStart(2, '0') + '-' + 
+    String(now.getMinutes()).padStart(2, '0') + '-' + 
+    String(now.getSeconds()).padStart(2, '0')
+  const timestamp = dateStr + '_' + timeStr
+
   for (const channel of channels) {
     if (!channel.connected) continue
 
     try {
       await invoke<string>('capture_frame', {
         channelId: channel.index,
-        parentPath: targetPath
+        parentPath: targetPath,
+        timestamp: timestamp
       })
       showToast(`通道 ${channel.index + 1} 拍照成功`)
     } catch (e) {
@@ -282,13 +292,6 @@ async function captureAll() {
                 @click="handleConnect(channel.index)"
               >
                 {{ channel.connected ? '断开' : '连接' }}
-              </button>
-              <button
-                class="btn-snap"
-                @click="captureAll"
-                :disabled="!channel.connected"
-              >
-                拍照
               </button>
             </div>
           </div>

@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
-use std::fs::{self, OpenOptions};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpListener;
 use std::path::PathBuf;
@@ -50,104 +49,77 @@ impl FFmpegManager {
         self.stop(channel_id);
 
         let ffmpeg_path = get_ffmpeg_path();
-        log::info!("Using FFmpeg: {}", ffmpeg_path);
-        log::info!("GPU encoder: {}", gpu_encoder);
+        println!("Using FFmpeg: {}", ffmpeg_path);
+        println!("GPU encoder: {}", gpu_encoder);
 
         let mut cmd = Command::new(&ffmpeg_path);
         
-        let is_nvidia = gpu_encoder == "hevc_nvenc" || gpu_encoder == "h264_nvenc";
-        let is_intel = gpu_encoder == "hevc_qsv" || gpu_encoder == "h264_qsv";
-        let is_amd = gpu_encoder == "hevc_amf" || gpu_encoder == "h264_amf";
         let is_apple = gpu_encoder == "hevc_videotoolbox" || gpu_encoder == "h264_videotoolbox";
+        let is_intel_qsv = gpu_encoder == "hevc_qsv" || gpu_encoder == "h264_qsv";
+        let is_nvidia = gpu_encoder == "hevc_nvenc" || gpu_encoder == "h264_nvenc";
         
-        if is_nvidia || is_intel || is_amd || is_apple {
-            let hwaccel = match gpu_encoder {
-                "hevc_nvenc" | "h264_nvenc" => "cuda",
-                "hevc_qsv" | "h264_qsv" => "qsv",
-                "hevc_amf" | "h264_amf" => "d3d11va",
-                "hevc_videotoolbox" | "h264_videotoolbox" => "videotoolbox",
-                _ => "auto",
-            };
-            
-            log::info!("Using hwaccel: {}", hwaccel);
-            
-            if is_apple {
-                cmd.args([
-                    "-rtsp_transport", "tcp",
-                    "-timeout", "10000000",
-                    "-fflags", "nobuffer+genpts+discardcorrupt",
-                    "-flags", "low_delay",
-                    "-err_detect", "ignore_err",
-                    "-max_delay", "500000",
-                    "-hwaccel", hwaccel,
-                    "-i", rtsp_url,
-                    "-an",
-                    "-c:v", "mjpeg",
-                    "-q:v", "8",
-                    "-s", "2560x1440",
-                    "-r", "25",
-                    "-f", "mjpeg",
-                    "-",
-                ]);
-            } else if is_nvidia {
-                cmd.args([
-                    "-rtsp_transport", "tcp",
-                    "-timeout", "10000000",
-                    "-fflags", "nobuffer+genpts+discardcorrupt",
-                    "-flags", "low_delay",
-                    "-err_detect", "ignore_err",
-                    "-max_delay", "500000",
-                    "-hwaccel", hwaccel,
-                    "-hwaccel_output_format", "cuda",
-                    "-i", rtsp_url,
-                    "-an",
-                    "-c:v", "mjpeg",
-                    "-q:v", "8",
-                    "-s", "2560x1440",
-                    "-r", "25",
-                    "-f", "mjpeg",
-                    "-",
-                ]);
-            } else if is_intel {
-                cmd.args([
-                    "-rtsp_transport", "tcp",
-                    "-timeout", "10000000",
-                    "-fflags", "nobuffer+genpts+discardcorrupt",
-                    "-flags", "low_delay",
-                    "-err_detect", "ignore_err",
-                    "-max_delay", "500000",
-                    "-hwaccel", hwaccel,
-                    "-hwaccel_output_format", "qsv",
-                    "-i", rtsp_url,
-                    "-an",
-                    "-c:v", "mjpeg",
-                    "-q:v", "8",
-                    "-s", "2560x1440",
-                    "-r", "25",
-                    "-f", "mjpeg",
-                    "-",
-                ]);
-            } else {
-                cmd.args([
-                    "-rtsp_transport", "tcp",
-                    "-timeout", "10000000",
-                    "-fflags", "nobuffer+genpts+discardcorrupt",
-                    "-flags", "low_delay",
-                    "-err_detect", "ignore_err",
-                    "-max_delay", "500000",
-                    "-hwaccel", hwaccel,
-                    "-i", rtsp_url,
-                    "-an",
-                    "-c:v", "mjpeg",
-                    "-q:v", "8",
-                    "-s", "2560x1440",
-                    "-r", "25",
-                    "-f", "mjpeg",
-                    "-",
-                ]);
-            }
+        if is_apple {
+            println!("Using Apple videotoolbox hardware decoding and encoding");
+            cmd.args([
+                "-rtsp_transport", "tcp",
+                "-timeout", "10000000",
+                "-fflags", "nobuffer+genpts+discardcorrupt",
+                "-flags", "low_delay",
+                "-err_detect", "ignore_err",
+                "-max_delay", "500000",
+                "-hwaccel", "videotoolbox",
+                "-i", rtsp_url,
+                "-an",
+                "-c:v", "mjpeg",
+                "-q:v", "8",
+                "-s", "2560x1440",
+                "-r", "25",
+                "-f", "mjpeg",
+                "-",
+            ]);
+        } else if is_nvidia {
+            println!("Using NVIDIA hardware decoding with CPU MJPEG encoding");
+            let decoder = if gpu_encoder == "hevc_nvenc" { "hevc_cuvid" } else { "h264_cuvid" };
+            cmd.args([
+                "-rtsp_transport", "tcp",
+                "-timeout", "10000000",
+                "-fflags", "nobuffer+genpts+discardcorrupt",
+                "-flags", "low_delay",
+                "-err_detect", "ignore_err",
+                "-max_delay", "500000",
+                "-hwaccel", "cuda",
+                "-hwaccel_output_format", "cuda",
+                "-i", rtsp_url,
+                "-an",
+                "-c:v", decoder,
+                "-c:v", "mjpeg",
+                "-q:v", "8",
+                "-s", "2560x1440",
+                "-r", "25",
+                "-f", "mjpeg",
+                "-",
+            ]);
+        } else if is_intel_qsv {
+            println!("Using Intel QSV hardware decoding and encoding");
+            cmd.args([
+                "-rtsp_transport", "tcp",
+                "-timeout", "10000000",
+                "-fflags", "nobuffer+genpts+discardcorrupt",
+                "-flags", "low_delay",
+                "-err_detect", "ignore_err",
+                "-max_delay", "500000",
+                "-hwaccel", "qsv",
+                "-i", rtsp_url,
+                "-an",
+                "-c:v", "mjpeg_qsv",
+                "-q:v", "8",
+                "-s", "2560x1440",
+                "-r", "25",
+                "-f", "mjpeg",
+                "-",
+            ]);
         } else {
-            log::info!("Using CPU decoding and encoding");
+            println!("Using CPU decoding");
             cmd.args([
                 "-rtsp_transport", "tcp",
                 "-timeout", "10000000",
@@ -171,7 +143,7 @@ impl FFmpegManager {
 
         let mut child = cmd.spawn().map_err(|e| format!("启动 FFmpeg 失败: {}", e))?;
         
-        log::info!("FFmpeg process started for channel {}", channel_id);
+        println!("FFmpeg process started for channel {}", channel_id);
 
         let stderr = child.stderr.take();
         thread::spawn(move || {
@@ -183,7 +155,7 @@ impl FFmpegManager {
                         Ok(0) => break,
                         Ok(_) => {
                             if !line.trim().is_empty() {
-                                log::warn!("FFmpeg stderr: {}", line.trim());
+                                eprintln!("FFmpeg stderr: {}", line.trim());
                             }
                         }
                         Err(_) => break,
@@ -247,7 +219,7 @@ async fn start_stream(
     rtsp_url: String,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
-    log::info!("start_stream called: channel={}, url={}", channel_id, rtsp_url);
+    println!("start_stream called: channel={}, url={}", channel_id, rtsp_url);
     
     let frames = state.frames.clone();
     let manager = state.ffmpeg_manager.clone();
@@ -283,7 +255,7 @@ async fn start_stream(
 }
 
 fn read_ffmpeg_output(channel_id: usize, frames: Arc<Mutex<HashMap<usize, Vec<u8>>>>, stdout: std::process::ChildStdout, _rtsp_url: String) {
-    log::info!("Starting FFmpeg output reader for channel {}", channel_id);
+    println!("Starting FFmpeg output reader for channel {}", channel_id);
     
     let mut frame_count = 0;
     let mut buffer = Vec::new();
@@ -293,7 +265,7 @@ fn read_ffmpeg_output(channel_id: usize, frames: Arc<Mutex<HashMap<usize, Vec<u8
     loop {
         match reader.read(&mut chunk) {
             Ok(0) => {
-                log::warn!("FFmpeg stdout EOF, attempting to reconnect...");
+                eprintln!("FFmpeg stdout EOF, attempting to reconnect...");
                 break;
             }
             Ok(n) => {
@@ -306,20 +278,20 @@ fn read_ffmpeg_output(channel_id: usize, frames: Arc<Mutex<HashMap<usize, Vec<u8
                         frames_lock.insert(channel_id, frame.clone());
                         frame_count += 1;
                         if frame_count % 30 == 0 {
-                            log::info!("Frame stored! size={}", frame.len());
+                            println!("Frame stored! size={}", frame.len());
                         }
                     }
                     buffer.drain(0..consumed);
                 }
             }
             Err(e) => {
-                log::info!("FFmpeg read error: {}", e);
+                println!("FFmpeg read error: {}", e);
                 break;
             }
         }
     }
     
-    log::info!("FFmpeg reader thread ended");
+    println!("FFmpeg reader thread ended");
 }
 
 fn extract_next_jpeg(buffer: &[u8]) -> Option<(Vec<u8>, usize)> {
@@ -356,7 +328,7 @@ async fn start_all_streams(state: State<'_, AppState>) -> Result<Vec<String>, St
             let mut manager = state.ffmpeg_manager.lock().unwrap();
             match manager.start(id, &channel.rtsp_url, 8890, &gpu_encoder) {
                 Ok(url) => results.push(url),
-                Err(e) => log::error!("Channel {} failed: {}", id, e),
+                Err(e) => eprintln!("Channel {} failed: {}", id, e),
             }
         }
     }
@@ -381,17 +353,17 @@ async fn save_image(
     filename: String,
     base64_data: String,
 ) -> Result<String, String> {
-    log::info!("save_image called: parent={}, date={}, time={}, filename={}", parent_path, date_str, time_str, filename);
-    log::info!("base64_data length: {}, prefix: {}", base64_data.len(), &base64_data[..30.min(base64_data.len())]);
+    println!("save_image called: parent={}, date={}, time={}, filename={}", parent_path, date_str, time_str, filename);
+    println!("base64_data length: {}, prefix: {}", base64_data.len(), &base64_data[..30.min(base64_data.len())]);
     
     let dir_path = PathBuf::from(&parent_path)
         .join(&date_str)
         .join(&time_str);
 
-    log::info!("Creating directory: {:?}", dir_path);
+    println!("Creating directory: {:?}", dir_path);
     std::fs::create_dir_all(&dir_path)
         .map_err(|e| {
-            log::error!("创建目录失败: {}", e);
+            eprintln!("创建目录失败: {}", e);
             format!("创建目录失败: {}", e)
         })?;
 
@@ -400,20 +372,20 @@ async fn save_image(
         .trim_start_matches("data:image/jpeg;base64,")
         .trim_start_matches("data:image/png;base64,");
 
-    log::info!("Decoding base64, length after trim: {}", base64_clean.len());
+    println!("Decoding base64, length after trim: {}", base64_clean.len());
     let image_data = base64::Engine::decode(
         &base64::engine::general_purpose::STANDARD,
         base64_clean,
     )
     .map_err(|e| {
-        log::error!("Base64 解码失败: {}", e);
+        eprintln!("Base64 解码失败: {}", e);
         format!("Base64 解码失败: {}", e)
     })?;
 
-    log::info!("Writing file: {:?}, size: {}", file_path, image_data.len());
+    println!("Writing file: {:?}, size: {}", file_path, image_data.len());
     std::fs::write(&file_path, image_data)
         .map_err(|e| {
-            log::error!("保存文件失败: {}", e);
+            eprintln!("保存文件失败: {}", e);
             format!("保存文件失败: {}", e)
         })?;
 
@@ -424,20 +396,35 @@ async fn save_image(
 async fn capture_frame(
     channel_id: usize,
     parent_path: String,
+    timestamp: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
-    log::info!("capture_frame called for channel {}", channel_id);
+    println!("capture_frame called for channel {}", channel_id);
     
-    let now = chrono::Local::now();
-    let date_str = now.format("%Y-%m-%d").to_string();
-    let time_str = now.format("%H-%M-%S").to_string();
-    let filename = format!("{}_通道{}.jpg", time_str, channel_id + 1);
+    let (date_str, time_str, filename) = if let Some(ts) = timestamp {
+        let parts: Vec<&str> = ts.split('_').collect();
+        if parts.len() == 2 {
+            let time_part = parts[1].to_string();
+            (parts[0].to_string(), time_part.clone(), format!("{}_通道{}.jpg", time_part, channel_id + 1))
+        } else {
+            let now = chrono::Local::now();
+            let date_str = now.format("%Y-%m-%d").to_string();
+            let time_str = now.format("%H-%M-%S").to_string();
+            (date_str, time_str.clone(), format!("{}_通道{}.jpg", time_str, channel_id + 1))
+        }
+    } else {
+        let now = chrono::Local::now();
+        let date_str = now.format("%Y-%m-%d").to_string();
+        let time_str = now.format("%H-%M-%S").to_string();
+        let filename = format!("{}_通道{}.jpg", time_str, channel_id + 1);
+        (date_str, time_str, filename)
+    };
     
     let frames = state.frames.lock().unwrap();
     let frame_data = frames.get(&channel_id).cloned();
     
     let frame = frame_data.ok_or("没有可用的视频帧")?;
-    log::info!("Got frame size: {}", frame.len());
+    println!("Got frame size: {}", frame.len());
     drop(frames);
     
     let dir_path = PathBuf::from(&parent_path)
@@ -451,7 +438,7 @@ async fn capture_frame(
     std::fs::write(&file_path, &frame)
         .map_err(|e| format!("保存文件失败: {}", e))?;
     
-    log::info!("Frame saved to: {:?}", file_path);
+    println!("Frame saved to: {:?}", file_path);
     Ok(file_path.to_string_lossy().to_string())
 }
 
@@ -471,13 +458,13 @@ const STORE_PATH: &str = "config.json";
 
 #[tauri::command]
 async fn load_config(app: AppHandle, state: State<'_, AppState>) -> Result<AppConfig, String> {
-    log::info!("load_config called");
+    println!("load_config called");
     
     // Try to load from store
     if let Ok(store) = app.store(STORE_PATH) {
         if let Some(config_val) = store.get("app_config") {
             if let Ok(config) = serde_json::from_value::<AppConfig>(config_val.clone()) {
-                log::info!("Loaded config from store: {:?}", config);
+                println!("Loaded config from store: {:?}", config);
                 // Also update state
                 let mut state_config = state.config.lock().unwrap();
                 *state_config = config.clone();
@@ -488,13 +475,13 @@ async fn load_config(app: AppHandle, state: State<'_, AppState>) -> Result<AppCo
     
     // Return default config
     let config = state.config.lock().unwrap().clone();
-    log::info!("Returning default config: {:?}", config);
+    println!("Returning default config: {:?}", config);
     Ok(config)
 }
 
 #[tauri::command]
 async fn save_config(app: AppHandle, config: AppConfig, state: State<'_, AppState>) -> Result<(), String> {
-    log::info!("save_config called: {:?}", config);
+    println!("save_config called: {:?}", config);
     
     // Update in-memory state
     let mut current_config = state.config.lock().unwrap();
@@ -505,7 +492,7 @@ async fn save_config(app: AppHandle, config: AppConfig, state: State<'_, AppStat
         let config_json = serde_json::to_value(&config).map_err(|e| e.to_string())?;
         store.set("app_config", config_json);
         store.save().map_err(|e| e.to_string())?;
-        log::info!("Config saved to store");
+        println!("Config saved to store");
     }
     
     Ok(())
@@ -513,7 +500,7 @@ async fn save_config(app: AppHandle, config: AppConfig, state: State<'_, AppStat
 
 #[tauri::command]
 async fn select_save_path(app: AppHandle) -> Result<Option<String>, String> {
-    log::info!("select_save_path called");
+    println!("select_save_path called");
     use tauri_plugin_dialog::DialogExt;
 
     let result = app
@@ -548,7 +535,7 @@ fn register_shortcut(app: &AppHandle, shortcut_str: &str) -> Result<(), String> 
     app.global_shortcut()
         .on_shortcut(shortcut, move |app, _shortcut, event| {
             if event.state == ShortcutState::Pressed {
-                log::info!("Global shortcut triggered");
+                println!("Global shortcut triggered");
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.emit("global-capture", ());
                 }
@@ -557,45 +544,6 @@ fn register_shortcut(app: &AppHandle, shortcut_str: &str) -> Result<(), String> 
         .map_err(|e| format!("注册快捷键失败: {}", e))?;
 
     Ok(())
-}
-
-fn setup_logging() {
-    let log_dir = std::env::current_dir()
-        .unwrap_or_else(|_| PathBuf::from("."))
-        .join("logs");
-    
-    let _ = fs::create_dir_all(&log_dir);
-    
-    let log_file_path = log_dir.join("app.log");
-    let log_file_path_for_panic = log_file_path.clone();
-    
-    std::panic::set_hook(Box::new(move |info| {
-        if let Ok(mut file) = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&log_file_path_for_panic)
-        {
-            use std::io::Write;
-            let _ = writeln!(file, "[PANIC] {}", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"));
-            let _ = writeln!(file, "[PANIC] {}", info);
-        }
-    }));
-    
-    env_logger::Builder::from_default_env()
-        .filter_level(log::LevelFilter::Info)
-        .format(|buf, record| {
-            writeln!(
-                buf,
-                "{} [{}] {} - {}",
-                chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-                record.level(),
-                record.target(),
-                record.args()
-            )
-        })
-        .init();
-    
-    log::info!("Logging initialized. Log file: {:?}", log_file_path);
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -615,7 +563,7 @@ fn check_gpu_support() -> GpuInfo {
         .output();
     
     if let Err(e) = ffmpeg_check {
-        log::warn!("FFmpeg not found at {}, GPU acceleration unavailable: {}", ffmpeg_path, e);
+        eprintln!("FFmpeg not found at {}, GPU acceleration unavailable: {}", ffmpeg_path, e);
         return GpuInfo { encoders: vec![], nvidia: false, intel: false, amd: false, apple: false };
     }
     
@@ -662,11 +610,11 @@ fn check_gpu_support() -> GpuInfo {
                 }
             }
             
-            log::info!("GPU support check: nvidia={}, intel={}, amd={}, apple={}", nvidia, intel, amd, apple);
-            log::info!("Available encoders: {:?}", encoders);
+            println!("GPU support check: nvidia={}, intel={}, amd={}, apple={}", nvidia, intel, amd, apple);
+            println!("Available encoders: {:?}", encoders);
         }
         Err(e) => {
-            log::error!("Failed to check GPU support: {}", e);
+            eprintln!("Failed to check GPU support: {}", e);
         }
     }
     
@@ -675,8 +623,7 @@ fn check_gpu_support() -> GpuInfo {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    setup_logging();
-    log::info!("Starting ONVIF Viewer");
+    println!("Starting ONVIF Viewer");
 
     let app_state = AppState {
         ffmpeg_manager: Arc::new(Mutex::new(FFmpegManager::new())),
@@ -704,10 +651,10 @@ pub fn run() {
         .setup(|app| {
             let shortcut_str = "CommandOrControl+Shift+P";
             if let Err(e) = register_shortcut(app.handle(), shortcut_str) {
-                log::error!("Failed to register default shortcut: {}", e);
+                eprintln!("Failed to register default shortcut: {}", e);
             }
 
-            log::info!("App setup complete");
+            println!("App setup complete");
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -730,7 +677,7 @@ pub fn run() {
 
 fn start_mjpeg_server(port: u16, frames: Arc<Mutex<HashMap<usize, Vec<u8>>>>) {
     let listener = TcpListener::bind(format!("0.0.0.0:{}", port)).unwrap();
-    log::info!("MJPEG/H265 server listening on port {}", port);
+    println!("MJPEG/H265 server listening on port {}", port);
 
     for stream in listener.incoming() {
         if let Ok(mut stream) = stream {
@@ -749,21 +696,21 @@ fn handle_stream_connection(
     let mut buffer = [0u8; 256];
     if let Ok(n) = stream.read(&mut buffer) {
         let request = String::from_utf8_lossy(&buffer[..n]);
-        log::info!("Stream request: {}", request.lines().next().unwrap_or(""));
+        println!("Stream request: {}", request.lines().next().unwrap_or(""));
         
         let channel_id = if let Some(path) = request.lines().next().and_then(|l| l.split_whitespace().nth(1)) {
             path.split('/').last().and_then(|s| s.parse().ok()).unwrap_or(0)
         } else {
             0
         };
-        log::info!("Serving channel: {}", channel_id);
+        println!("Serving channel: {}", channel_id);
         
         let response = "HTTP/1.1 200 OK\r\n\
             Content-Type: multipart/x-mixed-replace; boundary=jpegboundary\r\n\
             Cache-Control: no-cache\r\n\r\n";
 
         if let Err(e) = stream.write_all(response.as_bytes()) {
-            log::error!("Failed to write response header: {}", e);
+            eprintln!("Failed to write response header: {}", e);
             return;
         }
 
