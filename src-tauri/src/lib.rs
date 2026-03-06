@@ -61,67 +61,30 @@ impl FFmpegManager {
         let is_apple = gpu_encoder == "hevc_videotoolbox";
         
         if is_nvidia || is_intel || is_amd || is_apple {
-            if is_apple {
-                cmd.args([
-                    "-rtsp_transport", "tcp",
-                    "-timeout", "10000000",
-                    "-re",
-                    "-fflags", "nobuffer",
-                    "-flags", "low_delay",
-                    "-hwaccel", "videotoolbox",
-                    "-i", rtsp_url,
-                    "-an",
-                    "-c:v", "hevc_videotoolbox",
-                    "-profile:v", "main",
-                    "-f", "mjpeg",
-                    "-",
-                ]);
-            } else if is_nvidia {
-                cmd.args([
-                    "-rtsp_transport", "tcp",
-                    "-timeout", "10000000",
-                    "-re",
-                    "-fflags", "nobuffer",
-                    "-flags", "low_delay",
-                    "-hwaccel", "cuda",
-                    "-i", rtsp_url,
-                    "-an",
-                    "-c:v", "hevc_nvenc",
-                    "-preset", "fast",
-                    "-f", "mjpeg",
-                    "-",
-                ]);
-            } else if is_intel {
-                cmd.args([
-                    "-rtsp_transport", "tcp",
-                    "-timeout", "10000000",
-                    "-re",
-                    "-fflags", "nobuffer",
-                    "-flags", "low_delay",
-                    "-hwaccel", "qsv",
-                    "-i", rtsp_url,
-                    "-an",
-                    "-c:v", "hevc_qsv",
-                    "-preset", "fast",
-                    "-f", "mjpeg",
-                    "-",
-                ]);
-            } else {
-                cmd.args([
-                    "-rtsp_transport", "tcp",
-                    "-timeout", "10000000",
-                    "-re",
-                    "-fflags", "nobuffer",
-                    "-flags", "low_delay",
-                    "-hwaccel", "d3d11va",
-                    "-i", rtsp_url,
-                    "-an",
-                    "-c:v", "hevc_amf",
-                    "-preset", "fast",
-                    "-f", "mjpeg",
-                    "-",
-                ]);
-            }
+            let hwaccel = match gpu_encoder {
+                "hevc_nvenc" => "cuda",
+                "hevc_qsv" => "qsv",
+                "hevc_amf" => "d3d11va",
+                "hevc_videotoolbox" => "videotoolbox",
+                _ => "auto",
+            };
+            
+            cmd.args([
+                "-rtsp_transport", "tcp",
+                "-timeout", "10000000",
+                "-re",
+                "-fflags", "nobuffer",
+                "-flags", "low_delay",
+                "-hwaccel", hwaccel,
+                "-i", rtsp_url,
+                "-an",
+                "-c:v", "mjpeg",
+                "-q:v", "8",
+                "-s", "2560x1440",
+                "-r", "30",
+                "-f", "mjpeg",
+                "-",
+            ]);
         } else {
             cmd.args([
                 "-rtsp_transport", "tcp",
