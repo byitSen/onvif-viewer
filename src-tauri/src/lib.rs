@@ -680,8 +680,8 @@ pub fn run() {
         ffmpeg_manager: Arc::new(Mutex::new(FFmpegManager::new())),
         frames: Arc::new(Mutex::new(HashMap::new())),
         config: Arc::new(Mutex::new(AppConfig {
-            capture_shortcut: "CommandOrControl+Shift+P".to_string(),
-            gpu_encoder: "".to_string(),
+            capture_shortcut: "F1".to_string(),
+            gpu_encoder: "auto".to_string(),
             channels: vec![ChannelConfig::default(); 3],
             ..Default::default()
         })),

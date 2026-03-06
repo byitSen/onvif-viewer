@@ -21,7 +21,7 @@ interface GpuInfo {
 }
 
 const savePath = ref('')
-const captureShortcut = ref('CommandOrControl+Shift+P')
+const captureShortcut = ref('F1')
 const toastMessage = ref('')
 const gpuEncoder = ref('')
 const gpuInfo = ref<GpuInfo>({ encoders: [], nvidia: false, intel: false, amd: false, apple: false, auto_encoder: '' })
