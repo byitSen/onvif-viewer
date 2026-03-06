@@ -12,15 +12,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Download FFmpeg
+      - name: Download and setup FFmpeg
         shell: pwsh
         run: |
+          # Download FFmpeg
           $ffmpegUrl = "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-win64-gpl.zip"
+          Write-Host "Downloading FFmpeg from $ffmpegUrl"
           Invoke-WebRequest -Uri $ffmpegUrl -OutFile ffmpeg.zip
+          Write-Host "Extracting FFmpeg..."
           Expand-Archive -Path ffmpeg.zip -DestinationPath . -Force
-          Get-ChildItem -Path . -Filter "ffmpeg*" -Directory | ForEach-Object { 
-            New-Item -ItemType Junction -Path "src-tauri/resources/ffmpeg" -Target $_.FullName -Force | Out-Null
+          # Find and move ffmpeg to resources
+          $ffmpegDir = Get-ChildItem -Path . -Filter "ffmpeg*" -Directory | Select-Object -First 1
+          if ($ffmpegDir) {
+            New-Item -ItemType Directory -Path "src-tauri/resources" -Force | Out-Null
+            Move-Item -Path $ffmpegDir.FullName -Destination "src-tauri/resources/ffmpeg" -Force
+            Write-Host "FFmpeg installed to src-tauri/resources/ffmpeg"
           }
+          Remove-Item ffmpeg.zip -Force
       
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
