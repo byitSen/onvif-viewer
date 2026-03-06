@@ -14,6 +14,8 @@ interface Channel {
 const savePath = ref('')
 const captureShortcut = ref('CommandOrControl+Shift+P')
 const toastMessage = ref('')
+const gpuEnabled = ref(false)
+const gpuSupported = ref(false)
 
 function showToast(msg: string) {
   toastMessage.value = msg
@@ -47,8 +49,17 @@ onMounted(async () => {
     if (config.captureShortcut) {
       captureShortcut.value = config.captureShortcut
     }
+    if (config.gpuEnabled !== undefined) {
+      gpuEnabled.value = config.gpuEnabled
+    }
   } catch (e) {
     console.error('加载配置失败:', e)
+  }
+
+  try {
+    gpuSupported.value = await invoke<boolean>('check_gpu')
+  } catch (e) {
+    console.error('检测GPU失败:', e)
   }
 
   await listen('global-capture', () => {
@@ -63,12 +74,23 @@ async function saveConfig() {
       config: {
         savePath: savePath.value,
         captureShortcut: captureShortcut.value,
+        gpuEnabled: gpuEnabled.value,
         channels: channels.map(c => ({ rtspUrl: c.rtspUrl }))
       }
     })
   } catch (e) {
     console.error('保存配置失败:', e)
   }
+}
+
+async function toggleGpu() {
+  if (!gpuSupported.value) {
+    showToast('当前设备不支持GPU加速')
+    return
+  }
+  gpuEnabled.value = !gpuEnabled.value
+  await saveConfig()
+  showToast(gpuEnabled.value ? 'GPU加速已开启' : 'GPU加速已关闭')
 }
 
 async function selectSavePath() {
@@ -192,6 +214,14 @@ async function captureAll() {
           placeholder="快捷键"
           class="shortcut-input"
         />
+        <button 
+          class="btn" 
+          :class="gpuEnabled ? 'btn-gpu-on' : 'btn-gpu-off'"
+          @click="toggleGpu"
+          :title="gpuSupported ? (gpuEnabled ? 'GPU加速已开启' : 'GPU加速已关闭') : '当前设备不支持GPU加速'"
+        >
+          GPU {{ gpuSupported ? (gpuEnabled ? 'ON' : 'OFF') : 'N/A' }}
+        </button>
       </div>
     </header>
 
@@ -294,6 +324,11 @@ async function captureAll() {
 .btn-danger:hover { background: #dc2626; }
 .btn-primary { background: #0f3460; color: #fff; }
 .btn-primary:hover { background: #1a4a7a; }
+
+.btn-gpu-on { background: #22c55e; color: #fff; }
+.btn-gpu-on:hover { background: #16a34a; }
+.btn-gpu-off { background: #4b5563; color: #fff; }
+.btn-gpu-off:hover { background: #6b7280; }
 
 .shortcut-input {
   width: 150px;

@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::env;
+use std::fs::{self, OpenOptions};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpListener;
 use std::path::PathBuf;
@@ -22,6 +24,8 @@ pub struct AppConfig {
     pub save_path: Option<String>,
     #[serde(rename = "captureShortcut")]
     pub capture_shortcut: String,
+    #[serde(rename = "gpuEnabled")]
+    pub gpu_enabled: bool,
     pub channels: Vec<ChannelConfig>,
 }
 
@@ -42,30 +46,52 @@ impl FFmpegManager {
         }
     }
 
-    pub fn start(&mut self, channel_id: usize, rtsp_url: &str, _port: u16) -> Result<String, String> {
+    pub fn start(&mut self, channel_id: usize, rtsp_url: &str, _port: u16, gpu_enabled: bool) -> Result<String, String> {
         self.stop(channel_id);
 
         let ffmpeg_path = get_ffmpeg_path();
         log::info!("Using FFmpeg: {}", ffmpeg_path);
+        log::info!("GPU acceleration: {}", if gpu_enabled { "enabled" } else { "disabled" });
 
         let mut cmd = Command::new(&ffmpeg_path);
-        cmd.args([
-            "-rtsp_transport", "tcp",
-            "-timeout", "10000000",
-            "-re",
-            "-fflags", "nobuffer",
-            "-flags", "low_delay",
-            "-i", rtsp_url,
-            "-an",
-            "-c:v", "mjpeg",
-            "-q:v", "8",
-            "-s", "2560x1440",
-            "-r", "30",
-            "-f", "mjpeg",
-            "-",
-        ])
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        
+        if gpu_enabled {
+            cmd.args([
+                "-rtsp_transport", "tcp",
+                "-timeout", "10000000",
+                "-re",
+                "-fflags", "nobuffer",
+                "-flags", "low_delay",
+                "-hwaccel", "auto",
+                "-i", rtsp_url,
+                "-an",
+                "-c:v", "mjpeg",
+                "-q:v", "8",
+                "-s", "2560x1440",
+                "-r", "30",
+                "-f", "mjpeg",
+                "-",
+            ]);
+        } else {
+            cmd.args([
+                "-rtsp_transport", "tcp",
+                "-timeout", "10000000",
+                "-re",
+                "-fflags", "nobuffer",
+                "-flags", "low_delay",
+                "-i", rtsp_url,
+                "-an",
+                "-c:v", "mjpeg",
+                "-q:v", "8",
+                "-s", "2560x1440",
+                "-r", "30",
+                "-f", "mjpeg",
+                "-",
+            ]);
+        }
+        
+        cmd.stdout(Stdio::piped())
+           .stderr(Stdio::piped());
 
         let mut child = cmd.spawn().map_err(|e| format!("启动 FFmpeg 失败: {}", e))?;
         
@@ -113,7 +139,10 @@ fn get_ffmpeg_path() -> String {
     if cfg!(target_os = "windows") {
         if let Ok(exe_path) = std::env::current_exe() {
             if let Some(parent) = exe_path.parent() {
-                let bundled = parent.join("resources").join("ffmpeg.exe");
+                let bundled = parent.join("resources")
+                    .join("ffmpeg")
+                    .join("bin")
+                    .join("ffmpeg.exe");
                 if bundled.exists() {
                     return bundled.to_string_lossy().to_string();
                 }
@@ -157,10 +186,16 @@ async fn start_stream(
     
     let frames = state.frames.clone();
     let manager = state.ffmpeg_manager.clone();
+    let config = state.config.clone();
+    
+    let gpu_enabled = {
+        let cfg = config.lock().unwrap();
+        cfg.gpu_enabled
+    };
     
     let stdout = {
         let mut mgr = manager.lock().unwrap();
-        let _url = mgr.start(channel_id, &rtsp_url, 8890)?;
+        let _url = mgr.start(channel_id, &rtsp_url, 8890, gpu_enabled)?;
         
         if let Some(child) = mgr.processes.get_mut(&channel_id) {
             child.stdout.take()
@@ -355,6 +390,11 @@ async fn capture_frame(
 }
 
 #[tauri::command]
+fn check_gpu() -> bool {
+    check_gpu_support()
+}
+
+#[tauri::command]
 fn get_home_path() -> Result<String, String> {
     dirs::home_dir()
         .map(|p| p.to_string_lossy().to_string())
@@ -453,9 +493,83 @@ fn register_shortcut(app: &AppHandle, shortcut_str: &str) -> Result<(), String> 
     Ok(())
 }
 
+fn setup_logging() {
+    use std::io::Write;
+    
+    let log_dir = if cfg!(target_os = "windows") {
+        if let Ok(local_app_data) = env::var("LOCALAPPDATA") {
+            PathBuf::from(local_app_data).join("ONVIF Viewer").join("logs")
+        } else {
+            PathBuf::from(env::temp_dir()).join("ONVIF Viewer").join("logs")
+        }
+    } else {
+        dirs::data_local_dir()
+            .unwrap_or_else(|| PathBuf::from(env::temp_dir()))
+            .join("ONVIF Viewer")
+            .join("logs")
+    };
+    
+    let _ = fs::create_dir_all(&log_dir);
+    
+    let log_file_path = log_dir.join("app.log");
+    let log_file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_file_path)
+        .ok();
+    
+    env_logger::Builder::from_default_env()
+        .filter_level(log::LevelFilter::Info)
+        .format(|buf, record| {
+            writeln!(
+                buf,
+                "{} [{}] {} - {}",
+                chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+                record.level(),
+                record.target(),
+                record.args()
+            )
+        })
+        .init();
+    
+    if let Some(mut file) = log_file {
+        let _ = writeln!(file, "\n=== Application started at {} ===", chrono::Local::now().format("%Y-%m-%d %H:%M:%S"));
+    }
+    
+    log::info!("Logging initialized. Log file: {:?}", log_file_path);
+}
+
+fn check_gpu_support() -> bool {
+    let ffmpeg_path = get_ffmpeg_path();
+    
+    let output = Command::new(&ffmpeg_path)
+        .args(["-hide_banner", "-hwaccels"])
+        .output();
+    
+    match output {
+        Ok(out) => {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            let has_cuda = stdout.contains("cuda");
+            let has_dxva2 = stdout.contains("dxva2");
+            let has_d3d11va = stdout.contains("d3d11va");
+            let has_qsv = stdout.contains("qsv");
+            let has_vaapi = stdout.contains("vaapi");
+            
+            let has_gpu = has_cuda || has_dxva2 || has_d3d11va || has_qsv || has_vaapi;
+            log::info!("GPU support check: cuda={}, dxva2={}, d3d11va={}, qsv={}, vaapi={}", 
+                has_cuda, has_dxva2, has_d3d11va, has_qsv, has_vaapi);
+            has_gpu
+        }
+        Err(e) => {
+            log::error!("Failed to check GPU support: {}", e);
+            false
+        }
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    setup_logging();
     log::info!("Starting ONVIF Viewer");
 
     let app_state = AppState {
@@ -501,6 +615,7 @@ pub fn run() {
             select_save_path,
             update_shortcut,
             get_home_path,
+            check_gpu,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
