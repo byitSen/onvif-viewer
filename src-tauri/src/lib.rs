@@ -580,6 +580,8 @@ async fn update_shortcut(
 fn register_shortcut(app: &AppHandle, shortcut_str: &str) -> Result<(), String> {
     let shortcut: Shortcut = shortcut_str.parse().map_err(|_| "无效的快捷键")?;
 
+    let _ = app.global_shortcut().unregister(shortcut);
+
     app.global_shortcut()
         .on_shortcut(shortcut, move |app, _shortcut, event| {
             if event.state == ShortcutState::Pressed {
@@ -711,14 +713,19 @@ pub fn run() {
             let shortcut_str = "CommandOrControl+Shift+P";
             
             std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_millis(500));
-                for _ in 0..10 {
-                    if let Err(e) = register_shortcut(&app_handle, shortcut_str) {
-                        eprintln!("Failed to register shortcut: {}", e);
-                        std::thread::sleep(std::time::Duration::from_millis(500));
-                    } else {
-                        println!("Shortcut registered successfully");
-                        break;
+                println!("Starting shortcut registration...");
+                std::thread::sleep(std::time::Duration::from_secs(2));
+                for attempt in 0..20 {
+                    println!("Shortcut registration attempt {}", attempt + 1);
+                    match register_shortcut(&app_handle, shortcut_str) {
+                        Ok(_) => {
+                            println!("Shortcut registered successfully on attempt {}", attempt + 1);
+                            break;
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to register shortcut: {}", e);
+                            std::thread::sleep(std::time::Duration::from_millis(1000));
+                        }
                     }
                 }
             });
