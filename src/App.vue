@@ -24,6 +24,7 @@ const savePath = ref('')
 const captureShortcut = ref('F1')
 const toastMessage = ref('')
 const gpuEncoder = ref('')
+const useCanvas = ref(true)
 const gpuInfo = ref<GpuInfo>({ encoders: [], nvidia: false, intel: false, amd: false, apple: false, auto_encoder: '' })
 
 const gpuOptions = [
@@ -174,6 +175,38 @@ async function connectAll() {
       await new Promise(r => setTimeout(r, 500))
     }
   }
+  
+  if (useCanvas.value) {
+    initCanvasRenderers()
+  }
+}
+
+function initCanvasRenderers() {
+  for (const channel of channels) {
+    if (!channel.connected) continue
+    
+    const video = document.getElementById(`video-${channel.index}`) as HTMLVideoElement
+    const canvas = document.getElementById(`canvas-${channel.index}`) as HTMLCanvasElement
+    
+    if (!video || !canvas) continue
+    
+    const ctx = canvas.getContext('2d', { willReadFrequently: false })
+    if (!ctx) continue
+    
+    const drawFrame = () => {
+      if (!channel.connected || !useCanvas.value) return
+      
+      canvas.width = video.videoWidth || 640
+      canvas.height = video.videoHeight || 360
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+      
+      requestAnimationFrame(drawFrame)
+    }
+    
+    video.onplaying = () => {
+      requestAnimationFrame(drawFrame)
+    }
+  }
 }
 
 async function disconnectAll() {
@@ -262,8 +295,14 @@ async function captureAll() {
         </div>
         <div class="channel-body">
           <div class="video-wrapper">
+            <canvas
+              v-if="channel.connected && useCanvas"
+              :id="'canvas-' + channel.index"
+              width="640"
+              height="360"
+            ></canvas>
             <img
-              v-if="channel.connected"
+              v-else-if="channel.connected"
               :src="channel.streamUrl"
               :id="'video-' + channel.index"
             />
