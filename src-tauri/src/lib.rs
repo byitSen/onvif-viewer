@@ -708,7 +708,7 @@ pub fn run() {
         .manage(app_state)
         .setup(|app| {
             let app_handle = app.handle().clone();
-            let shortcut_str = "CommandOrControl+Shift+P";
+            let shortcut_str = "F1";
             
             std::thread::spawn(move || {
                 println!("Starting shortcut registration...");
