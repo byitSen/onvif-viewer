@@ -54,6 +54,13 @@ impl FFmpegManager {
 
         let mut cmd = Command::new(&ffmpeg_path);
         
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+        
         let is_auto = gpu_encoder == "auto";
         
         if is_auto {
