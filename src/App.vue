@@ -176,37 +176,52 @@ async function connectAll() {
     }
   }
   
-  if (useCanvas.value) {
-    initCanvasRenderers()
-  }
+  setTimeout(() => {
+    if (useCanvas.value) {
+      initCanvasRenderers()
+    }
+  }, 1000)
 }
 
 function initCanvasRenderers() {
   for (const channel of channels) {
     if (!channel.connected) continue
     
-    const video = document.getElementById(`video-${channel.index}`) as HTMLVideoElement
+    const video = document.getElementById(`video-hidden-${channel.index}`) as HTMLVideoElement
     const canvas = document.getElementById(`canvas-${channel.index}`) as HTMLCanvasElement
     
     if (!video || !canvas) continue
     
-    const ctx = canvas.getContext('2d', { willReadFrequently: false })
-    if (!ctx) continue
-    
-    const drawFrame = () => {
-      if (!channel.connected || !useCanvas.value) return
-      
-      canvas.width = video.videoWidth || 640
-      canvas.height = video.videoHeight || 360
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-      
-      requestAnimationFrame(drawFrame)
-    }
-    
-    video.onplaying = () => {
-      requestAnimationFrame(drawFrame)
+    if (video.readyState >= 2) {
+      startDrawing(channel.index, video, canvas)
+    } else {
+      video.onloadeddata = () => {
+        startDrawing(channel.index, video, canvas)
+      }
     }
   }
+}
+
+function startDrawing(index: number, video: HTMLVideoElement, canvas: HTMLCanvasElement) {
+  const ctx = canvas.getContext('2d', { willReadFrequently: false })
+  if (!ctx) return
+  
+  const channel = channels[index]
+  
+  const drawFrame = () => {
+    if (!channel.connected || !useCanvas.value) return
+    
+    if (video.readyState >= 2 && video.videoWidth > 0) {
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+      ctx.drawImage(video, 0, 0)
+    }
+    
+    requestAnimationFrame(drawFrame)
+  }
+  
+  video.play().catch(() => {})
+  requestAnimationFrame(drawFrame)
 }
 
 async function disconnectAll() {
@@ -307,6 +322,14 @@ async function captureAll() {
               :id="'video-' + channel.index"
             />
             <div class="placeholder" v-else>未连接</div>
+            <video
+              v-show="false"
+              :id="'video-hidden-' + channel.index"
+              :src="channel.streamUrl"
+              muted
+              playsinline
+              autoplay
+            ></video>
           </div>
           <div class="channel-controls">
             <input
