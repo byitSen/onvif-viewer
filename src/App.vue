@@ -359,7 +359,7 @@ async function captureAll() {
             ></canvas>
             <img
               v-else-if="channel.connected"
-              :src="channel.streamUrl + '?t=' + Date.now()"
+              :src="channel.streamUrl"
               :id="'video-' + channel.index"
               @error="console.log('Image load error for channel', channel.index)"
               @load="console.log('Image loaded for channel', channel.index)"

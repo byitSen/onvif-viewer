@@ -750,7 +750,8 @@ fn handle_stream_connection(
         println!("Stream request: {}", request.lines().next().unwrap_or(""));
         
         let channel_id = if let Some(path) = request.lines().next().and_then(|l| l.split_whitespace().nth(1)) {
-            path.split('/').last().and_then(|s| s.parse().ok()).unwrap_or(0)
+            let path_without_query = path.split('?').next().unwrap_or(path);
+            path_without_query.split('/').last().and_then(|s| s.parse().ok()).unwrap_or(0)
         } else {
             0
         };
