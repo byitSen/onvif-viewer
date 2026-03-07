@@ -28,7 +28,7 @@ const gpuEncoder = ref('')
 const useCanvas = ref(false)
 const gpuInfo = ref<GpuInfo>({ encoders: [], nvidia: false, intel: false, amd: false, apple: false, auto_encoder: '' })
 const fullscreenChannel = ref<number | null>(null)
-const videoRefreshKey = ref(0)
+const videoRefreshKeys = ref<Record<number, number>>({})
 
 const gpuOptions = [
   { value: 'auto', label: '自动 (FFmpeg硬件加速)' },
@@ -45,7 +45,11 @@ function showToast(msg: string) {
 function toggleFullscreen(index: number) {
   if (fullscreenChannel.value === index) {
     fullscreenChannel.value = null
-    videoRefreshKey.value++
+    for (let i = 0; i < 3; i++) {
+      if (channels[i]?.connected) {
+        videoRefreshKeys.value[i] = (videoRefreshKeys.value[i] || 0) + 1
+      }
+    }
   } else {
     fullscreenChannel.value = index
   }
@@ -334,8 +338,8 @@ async function captureAll() {
         <div class="fullscreen-video">
           <img
             v-if="channels[fullscreenChannel]?.connected"
-            :key="videoRefreshKey"
-            :src="channels[fullscreenChannel].streamUrl"
+            :key="videoRefreshKeys[fullscreenChannel] || 0"
+            :src="channels[fullscreenChannel].streamUrl + '?r=' + (videoRefreshKeys[fullscreenChannel] || 0)"
           />
         </div>
         <div class="fullscreen-capture">
@@ -362,8 +366,8 @@ async function captureAll() {
             ></canvas>
             <img
               v-else-if="channel.connected"
-              :key="videoRefreshKey"
-              :src="channel.streamUrl"
+              :key="videoRefreshKeys[channel.index] || 0"
+              :src="channel.streamUrl + '?r=' + (videoRefreshKeys[channel.index] || 0)"
               :id="'video-' + channel.index"
               @error="console.log('Image load error for channel', channel.index)"
               @load="console.log('Image loaded for channel', channel.index)"
