@@ -26,6 +26,7 @@ const toastMessage = ref('')
 const gpuEncoder = ref('')
 const useCanvas = ref(false)
 const gpuInfo = ref<GpuInfo>({ encoders: [], nvidia: false, intel: false, amd: false, apple: false, auto_encoder: '' })
+const fullscreenChannel = ref<number | null>(null)
 
 const gpuOptions = [
   { value: 'auto', label: '自动 (FFmpeg硬件加速)' },
@@ -37,6 +38,18 @@ function showToast(msg: string) {
   setTimeout(() => {
     toastMessage.value = ''
   }, 3000)
+}
+
+function toggleFullscreen(index: number) {
+  if (fullscreenChannel.value === index) {
+    fullscreenChannel.value = null
+  } else {
+    fullscreenChannel.value = index
+  }
+}
+
+function handleDoubleClick(index: number) {
+  toggleFullscreen(index)
 }
 
 const channels = reactive<Channel[]>([
@@ -303,13 +316,29 @@ async function captureAll() {
 
     <div v-if="toastMessage" class="toast">{{ toastMessage }}</div>
 
-    <main class="video-container">
+    <div v-if="fullscreenChannel !== null" class="fullscreen-overlay" @dblclick="fullscreenChannel = null">
+      <div class="fullscreen-content">
+        <div class="fullscreen-video">
+          <img
+            v-if="channels[fullscreenChannel]?.connected"
+            :src="channels[fullscreenChannel].streamUrl"
+          />
+        </div>
+        <div class="fullscreen-capture">
+          <button class="btn-capture" @click.stop="captureAll">
+            📷 一键拍照
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <main class="video-container" v-else>
       <div class="channel" v-for="(channel, idx) in channels" :key="channel.index">
         <div class="channel-header">
           <span>通道 {{ channel.index + 1 }}</span>
         </div>
         <div class="channel-body">
-          <div class="video-wrapper">
+          <div class="video-wrapper" @dblclick="handleDoubleClick(channel.index)">
             <canvas
               v-if="channel.connected && useCanvas"
               :id="'canvas-' + channel.index"
@@ -564,5 +593,51 @@ async function captureAll() {
 @keyframes fadeIn {
   from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
   to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.fullscreen-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #000;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.fullscreen-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.fullscreen-video {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.fullscreen-video img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.fullscreen-capture {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.fullscreen-capture .btn-capture {
+  padding: 16px 32px;
+  font-size: 20px;
 }
 </style>
