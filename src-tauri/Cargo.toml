@@ -29,11 +29,17 @@ base64 = "0.22"
 dirs = "5"
 chrono = "0.4"
 
-# Media decoding - symphonia
+# Media decoding
 symphonia = { version = "0.5", features = ["all"] }
 
-# GPU rendering
+# GPU rendering  
 wgpu = "0.14"
+
+# RTSP
+msf-rtsp = "0.3"
+
+# FFmpeg
+ffmpeg-sidecar = "2"
 
 [profile.release]
 panic = "abort"
