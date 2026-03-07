@@ -1,7 +1,7 @@
 [package]
 name = "onvif-viewer"
 version = "1.2.0"
-description = "ONVIF/RTSP Video Viewer with GPU acceleration"
+description = "ONVIF/RTSP Video Viewer"
 authors = [""]
 edition = "2021"
 
@@ -28,18 +28,6 @@ tokio = { version = "1", features = ["full"] }
 base64 = "0.22"
 dirs = "5"
 chrono = "0.4"
-
-# Media decoding
-symphonia = { version = "0.5", features = ["all"] }
-
-# GPU rendering  
-wgpu = "0.14"
-
-# RTSP
-msf-rtsp = "0.3"
-
-# FFmpeg
-ffmpeg-sidecar = "2"
 
 [profile.release]
 panic = "abort"
