@@ -9,6 +9,7 @@ interface Channel {
   connected: boolean
   streamUrl: string
   index: number
+  loading: boolean
 }
 
 interface GpuInfo {
@@ -53,9 +54,9 @@ function handleDoubleClick(index: number) {
 }
 
 const channels = reactive<Channel[]>([
-  { rtspUrl: '', connected: false, streamUrl: '', index: 0 },
-  { rtspUrl: '', connected: false, streamUrl: '', index: 1 },
-  { rtspUrl: '', connected: false, streamUrl: '', index: 2 },
+  { rtspUrl: '', connected: false, streamUrl: '', index: 0, loading: false },
+  { rtspUrl: '', connected: false, streamUrl: '', index: 1, loading: false },
+  { rtspUrl: '', connected: false, streamUrl: '', index: 2, loading: false },
 ])
 
   const hasAnyConnected = computed(() => channels.some(c => c.connected))
@@ -153,6 +154,7 @@ async function toggleConnection(index: number) {
       await invoke('stop_stream', { channelId: index })
       channel.connected = false
       channel.streamUrl = ''
+      channel.loading = false
       console.log('Stream stopped')
     } catch (e) {
       console.error('Stop failed:', e)
@@ -163,6 +165,7 @@ async function toggleConnection(index: number) {
       return
     }
 
+    channel.loading = true
     try {
       console.log('Starting stream with URL:', channel.rtspUrl)
       const url = await invoke<string>('start_stream', {
@@ -172,9 +175,17 @@ async function toggleConnection(index: number) {
       console.log('Stream started, URL:', url)
       channel.streamUrl = url
       channel.connected = true
+      channel.loading = false
       console.log('Channel connected set to true')
+      
+      setTimeout(() => {
+        if (channel.connected && useCanvas.value) {
+          initCanvasRenderers()
+        }
+      }, 2000)
     } catch (e) {
       console.error('连接失败:', e)
+      channel.loading = false
       alert('连接失败: ' + e)
     }
   }
@@ -185,7 +196,7 @@ async function connectAll() {
   for (const channel of channels) {
     if (channel.rtspUrl && !channel.connected) {
       await toggleConnection(channel.index)
-      await new Promise(r => setTimeout(r, 500))
+      await new Promise(r => setTimeout(r, 1000))
     }
   }
   
@@ -193,7 +204,7 @@ async function connectAll() {
     if (useCanvas.value) {
       initCanvasRenderers()
     }
-  }, 1000)
+  }, 2000)
 }
 
 function initCanvasRenderers() {
@@ -333,12 +344,13 @@ async function captureAll() {
     </div>
 
     <main class="video-container" v-else>
-      <div class="channel" v-for="(channel, idx) in channels" :key="channel.index">
+      <div class="channel" v-for="channel in channels" :key="channel.index">
         <div class="channel-header">
           <span>通道 {{ channel.index + 1 }}</span>
         </div>
         <div class="channel-body">
           <div class="video-wrapper" @dblclick="handleDoubleClick(channel.index)">
+            <div v-if="channel.loading" class="loading">加载中...</div>
             <canvas
               v-if="channel.connected && useCanvas"
               :id="'canvas-' + channel.index"
@@ -347,8 +359,10 @@ async function captureAll() {
             ></canvas>
             <img
               v-else-if="channel.connected"
-              :src="channel.streamUrl"
+              :src="channel.streamUrl + '?t=' + Date.now()"
               :id="'video-' + channel.index"
+              @error="console.log('Image load error for channel', channel.index)"
+              @load="console.log('Image loaded for channel', channel.index)"
             />
             <div class="placeholder" v-else>未连接</div>
             <video
@@ -507,6 +521,17 @@ async function captureAll() {
 .video-wrapper img { max-width: 100%; max-height: 100%; object-fit: contain; }
 
 .placeholder { color: #666; font-size: 14px; }
+
+.loading {
+  color: #e94560;
+  font-size: 14px;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
 
 .channel-controls { margin-top: 10px; }
 
