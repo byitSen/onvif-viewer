@@ -24,7 +24,7 @@ const savePath = ref('')
 const captureShortcut = ref('F1')
 const toastMessage = ref('')
 const gpuEncoder = ref('')
-const useCanvas = ref(true)
+const useCanvas = ref(false)
 const gpuInfo = ref<GpuInfo>({ encoders: [], nvidia: false, intel: false, amd: false, apple: false, auto_encoder: '' })
 
 const gpuOptions = [
