@@ -299,9 +299,9 @@ fn read_ffmpeg_output(channel_id: usize, frames: Arc<Mutex<HashMap<usize, Vec<u8
     println!("Starting FFmpeg output reader for channel {}", channel_id);
     
     let mut frame_count = 0;
-    let mut buffer = Vec::new();
+    let mut buffer = Vec::with_capacity(1024 * 1024);
     let mut reader = BufReader::new(stdout);
-    let mut chunk = vec![0u8; 65536];
+    let mut chunk = vec![0u8; 131072];
     
     loop {
         match reader.read(&mut chunk) {
@@ -316,10 +316,10 @@ fn read_ffmpeg_output(channel_id: usize, frames: Arc<Mutex<HashMap<usize, Vec<u8
                 while let Some((frame, consumed)) = extract_next_jpeg(&buffer) {
                     if !frame.is_empty() {
                         let mut frames_lock = frames.lock().unwrap();
-                        frames_lock.insert(channel_id, frame.clone());
+                        frames_lock.insert(channel_id, frame);
                         frame_count += 1;
                         if frame_count % 30 == 0 {
-                            println!("Frame stored! size={}", frame.len());
+                            println!("Frame stored! count={}", frame_count);
                         }
                     }
                     buffer.drain(0..consumed);
@@ -332,7 +332,7 @@ fn read_ffmpeg_output(channel_id: usize, frames: Arc<Mutex<HashMap<usize, Vec<u8
         }
     }
     
-    println!("FFmpeg reader thread ended");
+    println!("FFmpeg reader thread ended for channel {}", channel_id);
 }
 
 fn extract_next_jpeg(buffer: &[u8]) -> Option<(Vec<u8>, usize)> {
