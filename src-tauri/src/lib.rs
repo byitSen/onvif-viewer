@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 use tauri_plugin_store::StoreExt;
 
@@ -585,10 +585,8 @@ fn register_shortcut(app: &AppHandle, shortcut_str: &str) -> Result<(), String> 
     app.global_shortcut()
         .on_shortcut(shortcut, move |app, _shortcut, event| {
             if event.state == ShortcutState::Pressed {
-                println!("Global shortcut triggered");
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.emit("global-capture", ());
-                }
+                println!("Global shortcut triggered, emitting event");
+                let _ = app.emit("global-capture", ());
             }
         })
         .map_err(|e| format!("注册快捷键失败: {}", e))?;
