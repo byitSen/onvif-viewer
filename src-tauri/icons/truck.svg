@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="sky" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#87CEEB"/>
+      <stop offset="100%" style="stop-color:#E0F7FA"/>
+    </linearGradient>
+    <linearGradient id="truck" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF6B35"/>
+      <stop offset="100%" style="stop-color:#F7931E"/>
+    </linearGradient>
+    <linearGradient id="cab" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#FF8C42"/>
+      <stop offset="100%" style="stop-color:#FF6B35"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="512" cy="512" r="480" fill="url(#sky)"/>
+  
+  <!-- Ground -->
+  <ellipse cx="512" cy="820" rx="450" ry="80" fill="#8BC34A"/>
+  <ellipse cx="512" cy="820" rx="400" ry="60" fill="#9CCC65"/>
+  
+  <!-- Truck cargo box -->
+  <rect x="120" y="380" width="500" height="320" rx="20" fill="#FFF8E1" stroke="#5D4037" stroke-width="8"/>
+  <rect x="120" y="380" width="500" height="60" rx="20" fill="#FFECB3"/>
+  
+  <!-- Box stripes -->
+  <rect x="160" y="480" width="60" height="180" fill="#FF6B35" opacity="0.8"/>
+  <rect x="280" y="480" width="60" height="180" fill="#FF6B35" opacity="0.8"/>
+  <rect x="400" y="480" width="60" height="180" fill="#FF6B35" opacity="0.8"/>
+  <rect x="520" y="480" width="60" height="180" fill="#FF6B35" opacity="0.8"/>
+  
+  <!-- Truck cab -->
+  <path d="M 620 700 L 620 420 Q 620 380 660 380 L 820 380 Q 860 380 860 420 L 860 700 Z" fill="url(#cab)" stroke="#E65100" stroke-width="8"/>
+  
+  <!-- Cab window -->
+  <path d="M 640 410 Q 640 400 660 400 L 800 400 Q 830 400 830 430 L 830 520 L 640 520 Z" fill="#B3E5FC" stroke="#0288D1" stroke-width="6"/>
+  
+  <!-- Window shine -->
+  <path d="M 660 410 L 780 410 L 760 480 L 660 480 Z" fill="rgba(255,255,255,0.4)"/>
+  
+  <!-- Cab door -->
+  <rect x="640" y="540" width="120" height="140" rx="10" fill="#FF8C42" stroke="#E65100" stroke-width="4"/>
+  <circle cx="700" cy="610" r="15" fill="#FFD54F"/>
+  
+  <!-- Headlight -->
+  <circle cx="870" cy="620" r="30" fill="#FFF59D" stroke="#FBC02D" stroke-width="4"/>
+  
+  <!-- Bumper -->
+  <rect x="600" y="690" width="300" height="30" rx="10" fill="#5D4037"/>
+  
+  <!-- Wheels -->
+  <circle cx="280" cy="720" r="70" fill="#37474F" stroke="#263238" stroke-width="6"/>
+  <circle cx="280" cy="720" r="35" fill="#78909C"/>
+  <circle cx="280" cy="720" r="15" fill="#546E7A"/>
+  
+  <circle cx="750" cy="720" r="70" fill="#37474F" stroke="#263238" stroke-width="6"/>
+  <circle cx="750" cy="720" r="35" fill="#78909C"/>
+  <circle cx="750" cy="720" r="15" fill="#546E7A"/>
+  
+  <!-- Exhaust pipe -->
+  <rect x="100" y="320" width="30" height="80" rx="5" fill="#5D4037"/>
+  <rect x="95" y="300" width="40" height="25" rx="5" fill="#5D4037"/>
+  
+  <!-- Smoke -->
+  <circle cx="115" cy="270" r="25" fill="#90A4AE" opacity="0.6"/>
+  <circle cx="135" cy="245" r="30" fill="#B0BEC5" opacity="0.5"/>
+  <circle cx="160" cy="220" r="35" fill="#CFD8DC" opacity="0.4"/>
+  
+  <!-- Sun -->
+  <circle cx="850" cy="150" r="60" fill="#FFD54F"/>
+  <circle cx="870" cy="130" r="15" fill="#FFF176" opacity="0.6"/>
+  <circle cx="890" cy="160" r="12" fill="#FFF176" opacity="0.5"/>
+</svg>
