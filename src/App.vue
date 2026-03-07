@@ -619,7 +619,7 @@ async function captureAll() {
   padding: 12px 24px;
   border-radius: 8px;
   font-size: 14px;
-  z-index: 1000;
+  z-index: 3000;
   animation: fadeIn 0.3s ease;
 }
 
