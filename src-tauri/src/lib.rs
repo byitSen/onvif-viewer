@@ -707,10 +707,21 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .manage(app_state)
         .setup(|app| {
+            let app_handle = app.handle().clone();
             let shortcut_str = "CommandOrControl+Shift+P";
-            if let Err(e) = register_shortcut(app.handle(), shortcut_str) {
-                eprintln!("Failed to register default shortcut: {}", e);
-            }
+            
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(500));
+                for _ in 0..10 {
+                    if let Err(e) = register_shortcut(&app_handle, shortcut_str) {
+                        eprintln!("Failed to register shortcut: {}", e);
+                        std::thread::sleep(std::time::Duration::from_millis(500));
+                    } else {
+                        println!("Shortcut registered successfully");
+                        break;
+                    }
+                }
+            });
 
             println!("App setup complete");
             Ok(())
